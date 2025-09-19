@@ -34,6 +34,7 @@ def get_user_cookies(user: User) -> str:
 async def get_books(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
+    mode: str = Query("all", description="加载模式: rawbooks, all"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -42,7 +43,37 @@ async def get_books(
         # Get user books data from cache
         user_books = db.query(UserBooks).filter(UserBooks.user_id == current_user.id).first()
 
+        print(f"📋 检查用户书籍缓存: user_id={current_user.id}")
+        if user_books:
+            books_data = user_books.books_data
+            if books_data and isinstance(books_data, dict):
+                cached_books = books_data.get('books', [])
+                print(f"   ✅ 找到缓存数据: {len(cached_books)} 本书")
+                print(f"   📋 数据源: {books_data.get('source', 'unknown')}")
+            else:
+                print(f"   ⚠️ 缓存数据无效: {type(books_data)}")
+        else:
+            print(f"   ❌ 未找到用户书籍缓存记录")
+
+        # 检查缓存数据是否有效且包含书籍
+        need_refresh = False
         if not user_books or not user_books.books_data:
+            need_refresh = True
+            print("   🔄 需要刷新：无缓存数据")
+        else:
+            books_data = user_books.books_data
+            if not isinstance(books_data, dict):
+                need_refresh = True
+                print("   🔄 需要刷新：缓存数据格式无效")
+            else:
+                cached_books = books_data.get('books', [])
+                if not cached_books or len(cached_books) == 0:
+                    need_refresh = True
+                    print("   🔄 需要刷新：缓存的书籍列表为空")
+                else:
+                    print(f"   ✅ 使用缓存数据: {len(cached_books)} 本书")
+
+        if need_refresh:
             # If no cached data, fetch from WeRead API
             try:
                 cookies = get_user_cookies(current_user)
@@ -65,7 +96,9 @@ async def get_books(
                         }
                     )
 
-                user_data = weread_api.get_user_data(current_user.wr_vid)
+                # 使用增强版方法获取完整书架数据
+                print("📚 使用增强版方法获取书架数据（包括rawBooks和rawIndexes）")
+                user_data = weread_api.get_user_data_enhanced(current_user.wr_vid)
 
                 # 检查返回的数据是否有效
                 if not user_data or not isinstance(user_data, dict):
@@ -131,10 +164,22 @@ async def get_books(
                         }
                     )
         else:
+            # 使用缓存的数据
             user_data = user_books.books_data
+            print(f"📚 使用缓存书架数据: {len(user_data.get('books', []))} 本书")
 
         # Get books list
-        books_data = user_data.get('books', [])
+        all_books_data = user_data.get('books', [])
+
+        # 根据加载模式过滤书籍
+        if mode == "rawbooks":
+            # 只返回有完整信息的书籍（来自rawBooks）
+            books_data = [book for book in all_books_data if not book.get('needsDetailFetch', False)]
+            print(f"📖 rawbooks模式: 返回 {len(books_data)} 本有完整信息的书籍")
+        else:
+            # 返回所有书籍
+            books_data = all_books_data
+            print(f"📚 完整模式: 返回 {len(books_data)} 本书籍")
 
         # Sort by reading time (most recent first)
         books_data.sort(key=lambda x: x.get('readUpdateTime', 0), reverse=True)
@@ -155,42 +200,76 @@ async def get_books(
 
         for book in page_books:
             try:
-                # Check cache first
-                cached_book = db.query(BookCache).filter(BookCache.book_id == book['bookId']).first()
-
-                if cached_book:
-                    book_info = cached_book.book_info
+                # 优先检查原始数据是否包含足够的信息
+                has_sufficient_data = (
+                    book.get('title') and 
+                    book.get('title') != '未知书籍' and
+                    book.get('author') and
+                    book.get('author') != '未知作者'
+                )
+                
+                if has_sufficient_data:
+                    # 直接使用原始数据，避免额外的API调用
+                    print(f"📖 使用缓存数据: {book['bookId']} - {book.get('title', '')}")
+                    book_info = book
                 else:
-                    # Fetch from API and cache
-                    book_info = weread_api.get_book_info(book['bookId'])
-                    cache_entry = BookCache(book_id=book['bookId'], book_info=book_info)
-                    db.add(cache_entry)
-                    db.commit()
+                    # 检查数据库缓存
+                    cached_book = db.query(BookCache).filter(BookCache.book_id == book['bookId']).first()
+
+                    if cached_book:
+                        print(f"💾 使用数据库缓存: {book['bookId']}")
+                        book_info = cached_book.book_info
+                    else:
+                        # 仅在必要时才调用API获取详细信息
+                        print(f"🌐 通过API获取详细信息: {book['bookId']}")
+                        book_info = weread_api.get_book_info(book['bookId'])
+                        
+                        # 只缓存成功获取的数据
+                        if not book_info.get('error'):
+                            cache_entry = BookCache(book_id=book['bookId'], book_info=book_info)
+                            db.add(cache_entry)
+                            db.commit()
+
+                # 处理评分信息的不同格式
+                rating_detail = book_info.get('newRatingDetail', '')
+                if isinstance(rating_detail, dict):
+                    rating_title = rating_detail.get('title', '')
+                elif isinstance(rating_detail, str):
+                    rating_title = rating_detail
+                else:
+                    rating_title = ''
 
                 detailed_books.append({
                     'bookId': book['bookId'],
-                    'title': book_info.get('title', ''),
-                    'author': book_info.get('author', ''),
-                    'cover': book_info.get('cover', '').replace('s_', 't7_'),
-                    'finishReading': book_info.get('finishReading', 0),
-                    'category': book_info.get('category', ''),
-                    'newRatingDetail': book_info.get('newRatingDetail', {}).get('title', ''),
-                    'readUpdateTime': book.get('readUpdateTime', 0)
+                    'title': book_info.get('title', book.get('title', '')),
+                    'author': book_info.get('author', book.get('author', '')),
+                    'cover': book_info.get('cover', book.get('cover', '')).replace('s_', 't7_'),
+                    'finishReading': book_info.get('finishReading', book.get('finishReading', 0)),
+                    'category': book_info.get('category', book.get('category', '')),
+                    'newRatingDetail': rating_title,
+                    'readUpdateTime': book.get('readUpdateTime', 0),
+                    'source': book_info.get('source', 'unknown')  # 添加数据来源标识
                 })
 
             except Exception as e:
-                print(f"Error fetching book info for {book['bookId']}: {e}")
-                # Use basic info from cached data
+                print(f"⚠️ 处理书籍信息出错 {book['bookId']}: {e}")
+                # 使用原始数据作为备选
                 detailed_books.append({
                     'bookId': book['bookId'],
-                    'title': book.get('title', ''),
-                    'author': book.get('author', ''),
-                    'cover': book.get('cover', '').replace('s_', 't7_'),
+                    'title': book.get('title', '书籍信息不可用'),
+                    'author': book.get('author', '未知'),
+                    'cover': book.get('cover', '').replace('s_', 't7_') if book.get('cover') else '',
                     'finishReading': book.get('finishReading', 0),
                     'category': book.get('category', ''),
                     'newRatingDetail': '',
-                    'readUpdateTime': book.get('readUpdateTime', 0)
+                    'readUpdateTime': book.get('readUpdateTime', 0),
+                    'source': 'fallback'
                 })
+
+        # 计算加载状态信息
+        total_all_books = len(all_books_data)
+        rawbooks_count = len([book for book in all_books_data if not book.get('needsDetailFetch', False)])
+        synced_books_count = total_all_books - rawbooks_count
 
         return APIResponse(
             success=True,
@@ -200,7 +279,14 @@ async def get_books(
                 "total": total,
                 "page": page,
                 "page_size": page_size,
-                "total_pages": total_pages
+                "total_pages": total_pages,
+                "loading_info": {
+                    "mode": mode,
+                    "total_all_books": total_all_books,
+                    "rawbooks_count": rawbooks_count,
+                    "synced_books_count": synced_books_count,
+                    "has_more_to_sync": synced_books_count > 0 and mode == "rawbooks"
+                }
             }
         )
 
@@ -258,7 +344,10 @@ async def refresh_books(
     try:
         cookies = get_user_cookies(current_user)
         weread_api = WeReadAPI(cookies)
-        user_data = weread_api.get_user_data(current_user.wr_vid)
+
+        # 使用增强版方法获取完整书架数据
+        print("🔄 刷新书架：使用增强版方法获取数据（包括rawBooks和rawIndexes）")
+        user_data = weread_api.get_user_data_enhanced(current_user.wr_vid)
 
         # Update cached data
         user_books = db.query(UserBooks).filter(UserBooks.user_id == current_user.id).first()
@@ -270,10 +359,107 @@ async def refresh_books(
 
         db.commit()
 
+        # 显示详细的刷新信息
+        source = user_data.get('source', 'unknown')
+        html_count = user_data.get('html_book_count', 0)
+        synced_count = user_data.get('synced_book_count', 0)
+        total_count = len(user_data.get('books', []))
+
+        print(f"✅ 书架刷新完成:")
+        print(f"   📋 数据源: {source}")
+        print(f"   📖 HTML解析: {html_count} 本")
+        print(f"   🔄 syncBook同步: {synced_count} 本")
+        print(f"   📚 总计: {total_count} 本书")
+
         return APIResponse(
             success=True,
-            message="Books refreshed successfully"
+            message=f"书架刷新成功，共获取 {total_count} 本书籍",
+            data={
+                "total_books": total_count,
+                "source": source,
+                "html_book_count": html_count,
+                "synced_book_count": synced_count
+            }
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to refresh books: {str(e)}")
+
+@router.post("/test-html-parsing", response_model=APIResponse)
+async def test_html_parsing(
+    html_file_path: str = Query("response.html"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    测试HTML解析功能 - 从指定的HTML文件中解析书籍信息
+    """
+    try:
+        import os
+        from weread_api import WeReadAPI
+        
+        # 构建完整的文件路径
+        if not os.path.isabs(html_file_path):
+            # 如果是相对路径，从项目根目录开始
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            html_file_path = os.path.join(project_root, html_file_path)
+        
+        # 检查文件是否存在
+        if not os.path.exists(html_file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"HTML文件不存在: {html_file_path}"
+            )
+        
+        # 读取HTML文件内容
+        try:
+            with open(html_file_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"读取HTML文件失败: {str(e)}"
+            )
+        
+        # 创建WeReadAPI实例进行测试（使用空cookie）
+        weread_api = WeReadAPI("")
+        
+        # 使用新的HTML解析方法
+        books = weread_api._extract_books_from_html(html_content, current_user.wr_vid)
+        
+        # 统计信息
+        total_books = len(books)
+        books_with_details = sum(1 for book in books if book.get('title') != '未知书籍')
+        
+        # 按数据来源分组统计
+        source_stats = {}
+        for book in books:
+            source = book.get('source', 'unknown')
+            source_stats[source] = source_stats.get(source, 0) + 1
+        
+        return APIResponse(
+            success=True,
+            message=f"HTML解析测试完成，共提取到 {total_books} 本书籍",
+            data={
+                "total_books": total_books,
+                "books_with_details": books_with_details,
+                "source_statistics": source_stats,
+                "books": books[:20],  # 只返回前20本书作为示例
+                "html_file_path": html_file_path,
+                "html_file_size": len(html_content),
+                "test_info": {
+                    "user_vid": current_user.wr_vid,
+                    "parsing_method": "从window.__INITIAL_STATE__解析完整书籍数据",
+                    "data_sources": list(source_stats.keys())
+                }
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"HTML解析测试失败: {str(e)}"
+        )

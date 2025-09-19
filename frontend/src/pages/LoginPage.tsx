@@ -1,8 +1,9 @@
 import { useForm } from 'react-hook-form'
-import { useMutation } from 'react-query'
+import { useMutation, useQueryClient } from 'react-query'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { BookOpen, ExternalLink, HelpCircle } from 'lucide-react'
-import { authAPI } from '../lib/api'
+import { authAPI, booksAPI } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 
 interface LoginForm {
@@ -11,6 +12,8 @@ interface LoginForm {
 
 export default function LoginPage() {
   const { setAuth } = useAuthStore()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const {
     register,
@@ -19,11 +22,37 @@ export default function LoginPage() {
   } = useForm<LoginForm>()
 
   const loginMutation = useMutation(authAPI.login, {
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       if (response.data.success) {
-        const { access_token, user } = response.data.data
+        const { access_token, user, cached_books_count, cache_success } = response.data.data
         setAuth(access_token, user)
-        toast.success('登录成功！')
+
+        // 显示详细的登录成功信息
+        if (cache_success && cached_books_count > 0) {
+          toast.success(`登录成功！已自动加载 ${cached_books_count} 本书籍`)
+        } else {
+          toast.success('登录成功！正在加载书架数据...')
+        }
+
+        // 预取书籍数据，确保首页能立即显示
+        try {
+          // 清除所有相关的查询缓存，确保获取最新数据
+          queryClient.removeQueries(['books'])
+          await queryClient.prefetchQuery(['books', 1], () => booksAPI.getBooks(1, 12))
+          console.log('📚 书籍数据预取成功')
+        } catch (error) {
+          console.warn('⚠️ 书籍数据预取失败:', error)
+          // 如果预取失败，至少清除缓存，让首页重新获取
+          queryClient.removeQueries(['books'])
+        }
+
+        // 设置登录标记，让首页知道需要刷新数据
+        sessionStorage.setItem('justLoggedIn', 'true')
+
+        // 延迟一点时间显示成功消息，然后导航到首页
+        setTimeout(() => {
+          navigate('/', { replace: true, state: { fromLogin: true } })
+        }, 1500)
       } else {
         toast.error(response.data.message || '登录失败')
       }

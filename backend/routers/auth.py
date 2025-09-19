@@ -51,9 +51,15 @@ async def login(login_data: WeReadLogin, db: Session = Depends(get_db)):
                 detail=f"Cookie格式错误: {format_message}"
             )
         
-        # 2. 格式化Cookie
+        # 2. 格式化Cookie（解决编码问题）
         cookie_string = cookie_manager.format_cookie_for_api(cookies)
         print(f"尝试登录用户: {login_data.wr_vid}")
+        
+        # 2.1 调试cookie编码情况（开发模式）
+        debug_info = cookie_manager.debug_cookie_encoding(cookie_string)
+        if not debug_info.get('formatted_ascii_compatible', True):
+            print(f"⚠️ Cookie编码问题检测: {debug_info}")
+            # 可以选择在这里进行额外的处理或警告
         
         # 3. 测试Cookie有效性 (参考mcp-server-weread的验证方式)
         is_valid, validation_message, user_info = cookie_manager.test_cookie_validity(cookie_string)
@@ -66,6 +72,11 @@ async def login(login_data: WeReadLogin, db: Session = Depends(get_db)):
             api_valid = weread_api.login_success()
             api_message = "API验证成功" if api_valid else "API验证失败"
             print(f"🔍 WeReadAPI验证结果: {api_message}")
+        except UnicodeEncodeError as encoding_error:
+            print(f"❌ 编码错误: {encoding_error}")
+            # 当遇到编码错误时，提供具体的解决建议
+            api_message = "Cookie包含特殊字符导致编码错误，请尝试重新获取Cookie"
+            print(f"💡 建议: 请确保从浏览器Network面板获取完整的Cookie字符串")
         except Exception as api_error:
             print(f"⚠️ WeReadAPI验证出错: {api_error}")
             api_message = f"API验证出错: {str(api_error)}"
@@ -159,25 +170,67 @@ async def login(login_data: WeReadLogin, db: Session = Depends(get_db)):
             except Exception as e:
                 print(f"⚠️ 缓存书架数据失败: {e}")
         elif login_mode == "verified" or login_mode == "partial":
-            # 尝试通过API获取数据
+            # 使用增强版API获取完整书架数据
             try:
                 weread_api = WeReadAPI(cookie_string)
-                user_data = weread_api.get_user_data(login_data.wr_vid)
-                
+                print("📚 开始获取完整书架数据（包括rawBooks和rawIndexes）")
+
+                # 使用增强版方法获取完整数据
+                user_data = weread_api.get_user_data_enhanced(login_data.wr_vid)
+
                 user_books = db.query(UserBooks).filter(UserBooks.user_id == user.id).first()
                 if not user_books:
                     user_books = UserBooks(user_id=user.id, books_data=user_data)
                     db.add(user_books)
                 else:
                     user_books.books_data = user_data
-                
+
                 db.commit()
                 cached_books_count = len(user_data.get('books', []))
                 cache_success = True
-                print(f"📚 通过API缓存数据成功: {cached_books_count}本书")
-                
+
+                # 显示详细的数据获取信息
+                source = user_data.get('source', 'unknown')
+                html_count = user_data.get('html_book_count', 0)
+                synced_count = user_data.get('synced_book_count', 0)
+
+                print(f"✅ 增强版数据获取成功:")
+                print(f"   📋 数据源: {source}")
+                print(f"   📖 HTML解析: {html_count} 本")
+                print(f"   🔄 syncBook同步: {synced_count} 本")
+                print(f"   📚 总计缓存: {cached_books_count} 本书")
+
+                # 调试：检查缓存的数据结构
+                if cached_books_count == 0:
+                    print("⚠️ 警告：登录时获取的书籍数量为0")
+                    print(f"   user_data类型: {type(user_data)}")
+                    print(f"   user_data键: {list(user_data.keys()) if isinstance(user_data, dict) else 'N/A'}")
+                    books_in_data = user_data.get('books', [])
+                    print(f"   books数据类型: {type(books_in_data)}")
+                    print(f"   books长度: {len(books_in_data) if isinstance(books_in_data, list) else 'N/A'}")
+                else:
+                    print(f"✅ 登录时成功缓存了 {cached_books_count} 本书")
+
             except Exception as e:
-                print(f"⚠️ API缓存数据失败: {e}")
+                print(f"❌ 增强版API获取失败，回退到基础方法: {e}")
+                try:
+                    # 回退到基础方法
+                    weread_api = WeReadAPI(cookie_string)
+                    user_data = weread_api.get_user_data(login_data.wr_vid)
+
+                    user_books = db.query(UserBooks).filter(UserBooks.user_id == user.id).first()
+                    if not user_books:
+                        user_books = UserBooks(user_id=user.id, books_data=user_data)
+                        db.add(user_books)
+                    else:
+                        user_books.books_data = user_data
+
+                    db.commit()
+                    cached_books_count = len(user_data.get('books', []))
+                    cache_success = True
+                    print(f"📚 基础方法缓存成功: {cached_books_count}本书")
+                except Exception as fallback_error:
+                    print(f"⚠️ 基础方法也失败: {fallback_error}")
         else:
             print(f"⏭️ 跳过数据缓存 - 登录模式: {login_mode}")
 
@@ -457,11 +510,15 @@ async def weread_cookie_login(cookie_data: dict, db: Session = Depends(get_db)):
             user.wr_gender = cookies.get('wr_gender', '')
             db.commit()
         
-        # 尝试获取并缓存用户数据  
+        # 尝试获取并缓存用户数据（使用增强版方法）
         cache_success = False
+        cached_books_count = 0
         try:
-            user_data = weread_api.get_user_data(wr_vid)
-            
+            print("📚 开始获取完整书架数据（包括rawBooks和rawIndexes）")
+
+            # 使用增强版方法获取完整数据
+            user_data = weread_api.get_user_data_enhanced(wr_vid)
+
             # 保存或更新用户书籍数据
             user_books = db.query(UserBooks).filter(UserBooks.user_id == user.id).first()
             if not user_books:
@@ -469,13 +526,53 @@ async def weread_cookie_login(cookie_data: dict, db: Session = Depends(get_db)):
                 db.add(user_books)
             else:
                 user_books.books_data = user_data
-            
+
             db.commit()
             cache_success = True
-            print(f"✅ 成功缓存 {len(user_data.get('books', []))} 本书籍数据")
+            cached_books_count = len(user_data.get('books', []))
+
+            # 显示详细的数据获取信息
+            source = user_data.get('source', 'unknown')
+            html_count = user_data.get('html_book_count', 0)
+            synced_count = user_data.get('synced_book_count', 0)
+
+            print(f"✅ 增强版数据获取成功:")
+            print(f"   📋 数据源: {source}")
+            print(f"   📖 HTML解析: {html_count} 本")
+            print(f"   🔄 syncBook同步: {synced_count} 本")
+            print(f"   📚 总计缓存: {cached_books_count} 本书")
+
+            # 调试：检查缓存的数据结构
+            if cached_books_count == 0:
+                print("⚠️ 警告：登录时获取的书籍数量为0")
+                print(f"   user_data类型: {type(user_data)}")
+                print(f"   user_data键: {list(user_data.keys()) if isinstance(user_data, dict) else 'N/A'}")
+                books_in_data = user_data.get('books', [])
+                print(f"   books数据类型: {type(books_in_data)}")
+                print(f"   books长度: {len(books_in_data) if isinstance(books_in_data, list) else 'N/A'}")
+            else:
+                print(f"✅ 登录时成功缓存了 {cached_books_count} 本书")
+
         except Exception as e:
-            print(f"⚠️ 缓存用户数据失败: {e}")
-            # 开发模式下允许缓存失败
+            print(f"❌ 增强版API获取失败，回退到基础方法: {e}")
+            try:
+                # 回退到基础方法
+                user_data = weread_api.get_user_data(wr_vid)
+
+                user_books = db.query(UserBooks).filter(UserBooks.user_id == user.id).first()
+                if not user_books:
+                    user_books = UserBooks(user_id=user.id, books_data=user_data)
+                    db.add(user_books)
+                else:
+                    user_books.books_data = user_data
+
+                db.commit()
+                cache_success = True
+                cached_books_count = len(user_data.get('books', []))
+                print(f"📚 基础方法缓存成功: {cached_books_count}本书")
+            except Exception as fallback_error:
+                print(f"⚠️ 缓存用户数据失败: {fallback_error}")
+                # 开发模式下允许缓存失败
         
         # 创建访问令牌
         access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
@@ -495,7 +592,10 @@ async def weread_cookie_login(cookie_data: dict, db: Session = Depends(get_db)):
                     "wr_vid": user.wr_vid,
                     "wr_name": user.wr_name,
                     "wr_avatar": user.wr_avatar
-                }
+                },
+                "cached_books_count": cached_books_count,
+                "cache_success": cache_success,
+                "weread_verified": True
             }
         )
         

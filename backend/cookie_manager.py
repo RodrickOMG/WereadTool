@@ -238,7 +238,10 @@ class CookieManager:
         """
         格式化Cookie用于API调用
         参考mcp-server-weread的格式化方式
+        特别处理中文字符的编码问题
         """
+        import urllib.parse
+        
         # 确保必要字段存在
         formatted_cookies = {
             'wr_gid': cookies.get('wr_gid', ''),
@@ -247,12 +250,25 @@ class CookieManager:
             'wr_pf': '0',
             'wr_rt': cookies.get('wr_rt', ''),
             'wr_localvid': cookies.get('wr_localvid', ''),
-            'wr_name': cookies.get('wr_name', ''),
-            'wr_avatar': cookies.get('wr_avatar', ''),
+            # 对中文字符进行URL编码，避免HTTP头部编码错误
+            'wr_name': urllib.parse.quote(cookies.get('wr_name', ''), safe=''),
+            'wr_avatar': urllib.parse.quote(cookies.get('wr_avatar', ''), safe=''),
             'wr_gender': cookies.get('wr_gender', '')
         }
         
-        return '; '.join([f'{key}={value}' for key, value in formatted_cookies.items()])
+        # 过滤空值并进行最终检查
+        cookie_parts = []
+        for key, value in formatted_cookies.items():
+            if value:  # 只包含有值的cookie
+                try:
+                    # 确保cookie部分能够用ASCII编码
+                    cookie_part = f'{key}={value}'
+                    cookie_part.encode('ascii')
+                    cookie_parts.append(cookie_part)
+                except UnicodeEncodeError:
+                    print(f"⚠️ Cookie字段 {key}={value} 仍包含非ASCII字符，跳过")
+                    
+        return '; '.join(cookie_parts)
     
     def extract_user_info(self, user_data: Dict) -> Dict[str, str]:
         """
@@ -284,6 +300,48 @@ class CookieManager:
         }
         
         print(f"📋 提取用户信息完成: {result['wr_name']} (vid: {result['wr_vid']})")
+        return result
+
+    def debug_cookie_encoding(self, cookie_string: str) -> Dict:
+        """
+        调试cookie编码处理，用于排查编码问题
+        """
+        result = {
+            'original_length': len(cookie_string),
+            'original_has_chinese': any(ord(c) > 127 for c in cookie_string),
+            'encoding_errors': []
+        }
+        
+        try:
+            # 测试原始字符串的ASCII编码
+            cookie_string.encode('ascii')
+            result['ascii_compatible'] = True
+        except UnicodeEncodeError as e:
+            result['ascii_compatible'] = False
+            result['encoding_errors'].append(f"ASCII编码错误: {str(e)}")
+        
+        try:
+            # 测试格式化后的cookie
+            cookies = {}
+            for item in cookie_string.split(';'):
+                if '=' in item:
+                    key, value = item.strip().split('=', 1)
+                    cookies[key] = value
+            
+            formatted = self.format_cookie_for_api(cookies)
+            result['formatted_length'] = len(formatted)
+            result['formatted_ascii_compatible'] = True
+            
+            # 测试格式化后的ASCII兼容性
+            formatted.encode('ascii')
+            
+        except UnicodeEncodeError as e:
+            result['formatted_ascii_compatible'] = False
+            result['encoding_errors'].append(f"格式化后ASCII编码错误: {str(e)}")
+        except Exception as e:
+            result['encoding_errors'].append(f"格式化处理错误: {str(e)}")
+        
+        print(f"🔍 Cookie编码调试结果: {result}")
         return result
 
 

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Read(//d/projects/DaiversePlayground/WereadTool/**)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(//d/projects/DaiversePlayground/static/templates/WereadTool/**)",
+      "Read(//d/projects/DaiversePlayground/static/css/playground/WereadTool/**)"
     ],
     "deny": [],
     "ask": []
