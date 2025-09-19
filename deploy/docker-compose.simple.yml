@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.simple
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./weread.db
+      - SECRET_KEY=your-secret-key-change-in-production
+    volumes:
+      - weread_data:/app/data
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  weread_data:
