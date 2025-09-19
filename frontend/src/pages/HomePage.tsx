@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
 import { Link, useLocation } from 'react-router-dom'
-import { RefreshCw, Star, Book as BookIcon, CheckCircle, Loader } from 'lucide-react'
-import { booksAPI } from '../lib/api'
+import { RefreshCw, Star, Book as BookIcon, CheckCircle, Loader, Search, X, Filter } from 'lucide-react'
+import { booksAPI, searchAPI } from '../lib/api'
 import { useDynamicPageSize } from '../lib/hooks/useDynamicPageSize'
 import type { Book } from '../lib/api'
 import toast from 'react-hot-toast'
@@ -11,6 +11,12 @@ export default function HomePage() {
   const [page, setPage] = useState(1)
   const [loadingMode, setLoadingMode] = useState<'rawbooks' | 'all' | 'complete'>('rawbooks')
   const [showAllBooks, setShowAllBooks] = useState(false)
+
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchFilter, setSearchFilter] = useState<'all' | 'read' | 'unread'>('all')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
 
   // 使用动态计算的每页书籍数量
   const { pageSize, windowWidth } = useDynamicPageSize()
@@ -24,6 +30,22 @@ export default function HomePage() {
       setPage(1)
     }
   }, [pageSize])
+
+  // 搜索防抖
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // 当搜索查询改变时，重置页码
+  useEffect(() => {
+    if (page > 1) {
+      setPage(1)
+    }
+  }, [debouncedQuery, searchFilter])
 
   // 主查询：根据加载模式获取书籍
   const {
@@ -78,14 +100,42 @@ export default function HomePage() {
     }
   }, [location, queryClient, refetch])
 
-  const books = response?.data?.data?.books || []
-  const totalPages = response?.data?.data?.total_pages || 1
-  const total = response?.data?.data?.total || 0
+  // 搜索查询
+  const {
+    data: searchResponse,
+    isLoading: isSearchLoading,
+  } = useQuery(
+    ['search', debouncedQuery, page, pageSize],
+    () => searchAPI.searchBooks(debouncedQuery, page, pageSize),
+    {
+      enabled: !!debouncedQuery.trim() && debouncedQuery.length >= 2,
+      retry: 1,
+      staleTime: 2 * 60 * 1000,
+      cacheTime: 5 * 60 * 1000,
+    }
+  )
+
+  // 根据搜索状态决定使用哪个数据源
+  const isActiveSearch = !!debouncedQuery.trim() && debouncedQuery.length >= 2
+  const currentResponse = isActiveSearch ? searchResponse : response
+  const currentIsLoading = isActiveSearch ? isSearchLoading : isLoading
+
+  const books = currentResponse?.data?.data?.books || currentResponse?.data?.data?.results || []
+  const totalPages = currentResponse?.data?.data?.total_pages || 1
+  const total = currentResponse?.data?.data?.total || 0
   const loadingInfo = response?.data?.data?.loading_info
 
+  // 根据筛选条件过滤书籍
+  const filteredBooks = useMemo(() => {
+    if (searchFilter === 'all') return books
+    if (searchFilter === 'read') return books.filter((book: Book) => book.finishReading === 1)
+    if (searchFilter === 'unread') return books.filter((book: Book) => book.finishReading === 0)
+    return books
+  }, [books, searchFilter])
+
   // 计算显示状态
-  const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks
-  const isAutoLoading = loadingMode === 'all' && !isLoading
+  const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
+  const isAutoLoading = loadingMode === 'all' && !isLoading && !isActiveSearch
   const showLoadingIndicator = isInitialLoading || isAutoLoading
 
   const handleRefresh = async () => {
@@ -100,13 +150,19 @@ export default function HomePage() {
 
   const getRatingImage = (rating: string) => {
     const imageMap: { [key: string]: string } = {
-      '神作': '/static/images/outstanding.png',
-      '好评如潮': '/static/images/rave_reviews.png',
-      '脍炙人口': '/static/images/win_universal_praise.png',
-      '值得一读': '/static/images/worth_reading.png',
-      '褒贬不一': '/static/images/medium.png',
-      '不值一读': '/static/images/bad.png'
+      '神作': '/src/static/images/outstanding.png',
+      '好评如潮': '/src/static/images/rave_reviews.png',
+      '脍炙人口': '/src/static/images/win_universal_praise.png',
+      '值得一读': '/src/static/images/worth_reading.png',
+      '褒贬不一': '/src/static/images/medium.png',
+      '不值一读': '/src/static/images/bad.png'
     }
+
+    // 调试日志：检查评分映射是否正确
+    if (rating && !imageMap[rating]) {
+      console.log(`📊 未找到评分图片映射: "${rating}"`);
+    }
+
     return imageMap[rating] || null
   }
 
@@ -270,38 +326,88 @@ export default function HomePage() {
     <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-12">
-          <div className="space-y-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-              我的书架
-            </h1>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <p className="text-gray-700 font-medium text-lg">
-                  📚 共 {total} 本书
-                </p>
-                <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
-                  每页 {pageSize} 本
-                </span>
-              </div>
-              {loadingInfo && (
-                <div className="flex items-center gap-4 text-sm">
-                  {loadingInfo.synced_books_count > 0 && (
-                    <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-                      🔄 {loadingInfo.synced_books_count} 本待同步
-                    </span>
-                  )}
+        <div className="space-y-6 mb-12">
+          <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                我的书架
+              </h1>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <p className="text-gray-700 font-medium text-lg">
+                    📚 共 {total} 本书{isActiveSearch && ` | 搜索 "${debouncedQuery}"`}
+                  </p>
                 </div>
+                {loadingInfo && !isActiveSearch && (
+                  <div className="flex items-center gap-4 text-sm">
+                    {loadingInfo.synced_books_count > 0 && (
+                      <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                        🔄 {loadingInfo.synced_books_count} 本待同步
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleRefresh}
+              className="btn btn-secondary flex items-center space-x-2 shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>刷新</span>
+            </button>
+          </div>
+
+          {/* 搜索栏 */}
+          <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+            <div className="relative flex-1 max-w-md">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索书名、作者..."
+                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm transition-all duration-200"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                </button>
               )}
             </div>
+
+            {/* 筛选器 */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-gray-500" />
+              <select
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value as 'all' | 'read' | 'unread')}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm"
+              >
+                <option value="all">全部</option>
+                <option value="read">已读完</option>
+                <option value="unread">未读完</option>
+              </select>
+            </div>
+
+            {isActiveSearch && (
+              <div className="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg border">
+                {currentIsLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader className="h-4 w-4 animate-spin" />
+                    搜索中...
+                  </div>
+                ) : (
+                  `找到 ${filteredBooks.length} 本书`
+                )}
+              </div>
+            )}
           </div>
-          <button
-            onClick={handleRefresh}
-            className="btn btn-secondary flex items-center space-x-2 shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span>刷新</span>
-          </button>
         </div>
 
       {/* Loading Status */}
@@ -331,7 +437,7 @@ export default function HomePage() {
       )}
 
       {/* Loading Skeleton */}
-      {isLoading && (
+      {currentIsLoading && (
         <div className="book-showcase">
           {Array.from({ length: pageSize }).map((_, i) => (
             <div key={i} className="book-card">
@@ -344,10 +450,10 @@ export default function HomePage() {
       )}
 
       {/* Books Grid - 仿照原模板的书籍卡片设计 */}
-      {!isLoading && books.length > 0 && (
+      {!currentIsLoading && filteredBooks.length > 0 && (
         <>
           <div className="book-showcase">
-            {books.map((book: Book) => (
+            {filteredBooks.map((book: Book) => (
               <Link
                 key={book.bookId}
                 to={`/books/${book.bookId}`}
@@ -372,29 +478,45 @@ export default function HomePage() {
 
                     {/* 状态标记 */}
                     <div className="book-badges">
-                      {book.finishReading === 1 && (
-                        <div className="badge badge-finished">
-                          <CheckCircle className="h-4 w-4" />
-                          <span>已读完</span>
-                        </div>
-                      )}
-
-                      {book.newRatingDetail && (
-                        <div className="rating-badge-container">
-                          {getRatingImage(book.newRatingDetail) ? (
+                      {/* 左侧：已读完标记 */}
+                      <div className="book-badges-left">
+                        {book.finishReading === 1 && (
+                          <div className="rating-badge-container">
                             <img
-                              src={getRatingImage(book.newRatingDetail)!}
-                              alt={book.newRatingDetail}
-                              className="rating-image"
-                              title={book.newRatingDetail}
+                              src="/src/static/images/finished_reading.jpg"
+                              alt="已读完"
+                              className="rating-image finished-reading"
+                              title="已读完"
                             />
-                          ) : (
-                            <div className={`badge badge-rating ${getRatingBadgeClass(book.newRatingDetail)}`}>
-                              {book.newRatingDetail}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 右侧：评分标记 */}
+                      <div className="book-badges-right">
+                        {book.newRatingDetail && (
+                          <div className="rating-badge-container">
+                            {(() => {
+                              // 调试日志：显示书籍评分信息
+                              console.log(`📚 书籍评分信息 - 书名: ${book.title}, 评分: "${book.newRatingDetail}", 加载模式: ${loadingMode}`);
+
+                              const ratingImage = getRatingImage(book.newRatingDetail);
+                              return ratingImage ? (
+                                <img
+                                  src={ratingImage}
+                                  alt={book.newRatingDetail}
+                                  className="rating-image"
+                                  title={book.newRatingDetail}
+                                />
+                              ) : (
+                                <div className={`badge badge-rating ${getRatingBadgeClass(book.newRatingDetail)}`}>
+                                  {book.newRatingDetail}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -487,21 +609,60 @@ export default function HomePage() {
       )}
 
       {/* Empty State */}
-      {!isLoading && books.length === 0 && (
+      {!currentIsLoading && filteredBooks.length === 0 && (
         <div className="text-center py-12">
-          <BookIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">暂无书籍</h3>
-          <p className="text-gray-600 mb-4">
-            书架是空的，可能需要刷新来加载最新数据
-          </p>
-          <div className="space-y-3">
-            <button onClick={handleRefresh} className="btn btn-primary">
-              刷新书架
-            </button>
-            <p className="text-sm text-gray-500">
-              如果刷新后仍无数据，请检查微信读书是否有书籍或重新登录
-            </p>
-          </div>
+          {isActiveSearch ? (
+            <>
+              <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">未找到相关书籍</h3>
+              <p className="text-gray-600 mb-4">
+                没有找到包含 "{debouncedQuery}" 的书籍
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="btn btn-primary"
+                >
+                  清除搜索
+                </button>
+                <p className="text-sm text-gray-500">
+                  尝试使用不同的关键词或清除筛选条件
+                </p>
+              </div>
+            </>
+          ) : searchFilter !== 'all' ? (
+            <>
+              <Filter className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                没有{searchFilter === 'read' ? '已读' : '未读'}的书籍
+              </h3>
+              <p className="text-gray-600 mb-4">
+                当前筛选条件下没有找到书籍
+              </p>
+              <button
+                onClick={() => setSearchFilter('all')}
+                className="btn btn-primary"
+              >
+                显示全部书籍
+              </button>
+            </>
+          ) : (
+            <>
+              <BookIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">暂无书籍</h3>
+              <p className="text-gray-600 mb-4">
+                书架是空的，可能需要刷新来加载最新数据
+              </p>
+              <div className="space-y-3">
+                <button onClick={handleRefresh} className="btn btn-primary">
+                  刷新书架
+                </button>
+                <p className="text-sm text-gray-500">
+                  如果刷新后仍无数据，请检查微信读书是否有书籍或重新登录
+                </p>
+              </div>
+            </>
+          )}
         </div>
       )}
       </div>

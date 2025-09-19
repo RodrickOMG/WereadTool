@@ -42,9 +42,9 @@
 
   /* 书籍展示区域 */
   .book-showcase {
-    @apply grid gap-6 w-full max-w-7xl mx-auto;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    @apply md:gap-8;
+    @apply grid gap-8 w-full max-w-7xl mx-auto;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    @apply md:gap-10;
   }
 
   /* 书籍卡片 - 符合真实书籍比例 3:4 */
@@ -60,12 +60,18 @@
     @apply bg-gradient-to-br from-white to-gray-50;
     @apply shadow-lg border border-white/30;
     @apply transition-all duration-500 ease-out;
-    @apply hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-1;
+    @apply hover:shadow-2xl hover:scale-[1.03] hover:-translate-y-2;
     @apply hover:border-white/50;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  .book-card-inner:hover {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 25px 25px -12px rgba(0, 0, 0, 0.1);
   }
 
   .book-cover-image {
     @apply w-full h-full object-cover transition-all duration-500;
+    filter: brightness(1.05) contrast(1.05) saturate(1.1);
   }
 
   .book-card:hover .book-cover-image {
@@ -74,8 +80,8 @@
 
   /* 悬浮覆盖层 */
   .book-overlay {
-    @apply absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white;
-    @apply flex flex-col justify-between p-4 transition-all duration-500 ease-out;
+    @apply absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent text-white;
+    @apply flex flex-col justify-between p-6 transition-all duration-500 ease-out;
     @apply translate-y-full opacity-0;
   }
 
@@ -88,32 +94,63 @@
   }
 
   .book-title {
-    @apply text-lg font-bold mb-2 line-clamp-2 leading-tight;
+    @apply text-xl font-bold mb-4 line-clamp-2 leading-tight;
     @apply text-white drop-shadow-lg;
   }
 
   .book-author {
-    @apply text-sm text-gray-200 mb-1 drop-shadow-md;
+    @apply text-base text-gray-200 mb-3 drop-shadow-md;
   }
 
   .book-category {
-    @apply text-xs text-gray-300 bg-black/30 px-2 py-1 rounded-full;
-    @apply backdrop-blur-sm border border-white/20;
+    @apply text-sm text-gray-300 bg-black/40 px-3 py-2 rounded-full;
+    @apply backdrop-blur-sm border border-white/30 font-medium;
+  }
+
+  .book-info > * {
+    @apply transition-all duration-300 ease-out;
+    @apply opacity-0 transform translate-y-3;
+  }
+
+  .book-card:hover .book-info > * {
+    @apply opacity-100 translate-y-0;
+  }
+
+  .book-card:hover .book-title {
+    transition-delay: 50ms;
+  }
+
+  .book-card:hover .book-author {
+    transition-delay: 150ms;
+  }
+
+  .book-card:hover .book-category {
+    transition-delay: 250ms;
+  }
+
+  .book-badges .rating-image,
+  .book-badges .badge {
+    transition-delay: 100ms;
   }
 
   /* 状态标记 */
   .book-badges {
-    @apply absolute top-3 right-3 flex flex-col gap-2 z-10;
+    @apply absolute top-3 inset-x-3 flex justify-between items-start z-10;
+  }
+
+  .book-badges-left {
+    @apply flex flex-row gap-2;
+  }
+
+  .book-badges-right {
+    @apply flex flex-row gap-2;
   }
 
   .badge {
-    @apply px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5;
-    @apply backdrop-blur-sm border border-white/30 shadow-lg;
-    @apply transition-all duration-200 hover:scale-105;
-  }
-
-  .badge-finished {
-    @apply bg-emerald-500 text-white shadow-emerald-500/30;
+    @apply px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1;
+    @apply backdrop-blur-sm border border-white/30 shadow-md;
+    @apply transition-all duration-300 hover:scale-105 hover:shadow-lg;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.15);
   }
 
   .badge-rating {
@@ -154,8 +191,21 @@
   }
 
   .rating-image {
-    @apply w-8 h-8 rounded-full border-2 border-white shadow-md;
-    @apply transition-all duration-200 hover:scale-110;
+    @apply h-6 w-auto object-contain shadow-lg;
+    @apply transition-all duration-300 hover:scale-110 hover:shadow-xl;
+    max-height: 24px;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 4px;
+    padding: 2px;
+    backdrop-filter: blur(4px);
+  }
+
+  .rating-image.finished-reading {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.9);
   }
 
   /* 分页样式 */
@@ -169,13 +219,18 @@
   }
 
   .page-btn {
-    @apply px-5 py-3 border border-gray-200 rounded-xl text-gray-700 font-medium;
+    @apply px-5 py-3 border border-gray-200 rounded-xl font-medium text-gray-700;
     @apply bg-white/60 backdrop-blur-sm;
-    @apply hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:text-white;
-    @apply hover:border-transparent hover:shadow-lg;
+    @apply hover:border-transparent hover:shadow-lg hover:scale-105;
     @apply disabled:opacity-50 disabled:cursor-not-allowed;
-    @apply disabled:hover:bg-white/60 disabled:hover:text-gray-700 disabled:hover:shadow-none;
+    @apply disabled:hover:bg-white/60 disabled:hover:shadow-none disabled:hover:scale-100;
     @apply transition-all duration-300 ease-out;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: rgb(2 132 199);
+    color: white;
   }
 
   .page-numbers {
@@ -183,16 +238,23 @@
   }
 
   .page-number {
-    @apply px-4 py-3 border border-gray-200 rounded-xl text-gray-700 font-medium;
+    @apply px-4 py-3 border border-gray-200 rounded-xl font-medium text-gray-700;
     @apply bg-white/60 backdrop-blur-sm;
-    @apply hover:bg-gradient-to-r hover:from-indigo-500 hover:to-blue-500 hover:text-white;
     @apply hover:border-transparent hover:shadow-lg hover:scale-105;
     @apply transition-all duration-300 ease-out;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .page-number:hover {
+    background: rgb(2 132 199);
+    color: white;
   }
 
   .page-number.active {
-    @apply bg-gradient-to-r from-indigo-500 to-blue-500 text-white border-transparent;
-    @apply shadow-lg scale-105;
+    @apply border-transparent shadow-lg scale-105;
+    background: rgb(2 132 199);
+    color: white;
+    box-shadow: 0 8px 20px -4px rgba(2, 132, 199, 0.4);
   }
 
   .page-ellipsis {
@@ -204,29 +266,41 @@
   }
 
   .page-input {
-    @apply w-20 px-3 py-3 border border-gray-200 rounded-xl text-center text-sm font-medium;
+    @apply w-20 px-3 py-3 border border-gray-200 rounded-xl text-center text-sm font-medium text-gray-700;
     @apply bg-white/60 backdrop-blur-sm;
-    @apply focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
     @apply focus:bg-white focus:shadow-lg;
     @apply transition-all duration-200;
   }
 
+  .page-input:focus {
+    outline: 2px solid rgb(2 132 199);
+    border-color: rgb(2 132 199);
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+  }
+
   .page-confirm {
-    @apply px-4 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 border border-transparent rounded-xl text-sm font-medium text-white;
-    @apply hover:from-indigo-600 hover:to-blue-600 hover:shadow-lg hover:scale-105;
+    @apply px-4 py-3 border border-transparent rounded-xl text-sm font-medium text-white;
+    @apply hover:shadow-lg hover:scale-105;
     @apply transition-all duration-300 ease-out;
+    background: rgb(2 132 199);
+  }
+
+  .page-confirm:hover {
+    background: rgb(2 132 199 / 0.9);
   }
 
   /* 响应式设计 */
   @media (max-width: 1536px) {
     .book-showcase {
-      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      @apply gap-7;
     }
   }
 
   @media (max-width: 1280px) {
     .book-showcase {
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      @apply gap-6;
     }
 
     .container {
@@ -236,8 +310,12 @@
 
   @media (max-width: 1024px) {
     .book-showcase {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 1.5rem;
+    }
+
+    .book-overlay {
+      @apply p-5;
     }
 
     .pagination {
@@ -251,24 +329,28 @@
 
   @media (max-width: 768px) {
     .book-showcase {
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1.25rem;
     }
 
     .book-card-inner {
       @apply rounded-xl;
     }
 
+    .book-overlay {
+      @apply p-4;
+    }
+
     .book-title {
-      @apply text-sm leading-tight;
+      @apply text-base leading-tight mb-3;
     }
 
     .book-author {
-      @apply text-xs;
+      @apply text-sm mb-2;
     }
 
     .book-category {
-      @apply text-xs px-1.5 py-0.5;
+      @apply text-sm px-2.5 py-1.5;
     }
 
     .pagination {
@@ -277,11 +359,26 @@
     }
 
     .page-btn {
-      @apply px-3 py-2 text-sm;
+      @apply px-3 py-2 text-sm text-gray-700;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      background: rgb(2 132 199);
+      color: white;
     }
 
     .page-number {
-      @apply px-3 py-2 text-sm;
+      @apply px-3 py-2 text-sm text-gray-700;
+    }
+
+    .page-number:hover {
+      background: rgb(2 132 199);
+      color: white;
+    }
+
+    .page-number.active {
+      background: rgb(2 132 199);
+      color: white;
     }
 
     .page-numbers {
@@ -296,8 +393,28 @@
       @apply w-16;
     }
 
+    .book-badges {
+      @apply top-1.5 inset-x-1.5;
+    }
+
     .rating-image {
-      @apply w-6 h-6;
+      @apply h-4 w-auto object-contain;
+      max-height: 16px;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 2px;
+      padding: 1px;
+      backdrop-filter: blur(2px);
+    }
+
+    .rating-image.finished-reading {
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .badge {
+      @apply px-1 py-0.5 text-xs;
     }
   }
 
@@ -315,11 +432,27 @@
     }
 
     .book-badges {
-      @apply top-2 right-2 gap-1;
+      @apply top-2 inset-x-2;
+    }
+
+    .rating-image {
+      @apply h-5 w-auto object-contain;
+      max-height: 20px;
+      filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.4));
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 3px;
+      padding: 1px;
+      backdrop-filter: blur(3px);
+    }
+
+    .rating-image.finished-reading {
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.95);
     }
 
     .badge {
-      @apply px-2 py-1 text-xs;
+      @apply px-1.5 py-0.5 text-xs;
     }
 
     .pagination {
@@ -327,11 +460,26 @@
     }
 
     .page-btn {
-      @apply px-2 py-1.5 text-xs;
+      @apply px-2 py-1.5 text-xs text-gray-700;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      background: rgb(2 132 199);
+      color: white;
     }
 
     .page-number {
-      @apply px-2.5 py-1.5 text-xs;
+      @apply px-2.5 py-1.5 text-xs text-gray-700;
+    }
+
+    .page-number:hover {
+      background: rgb(2 132 199);
+      color: white;
+    }
+
+    .page-number.active {
+      background: rgb(2 132 199);
+      color: white;
     }
   }
 
@@ -347,6 +495,7 @@
 
     .book-overlay {
       @apply p-3;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
     }
 
     .book-info {
@@ -354,7 +503,32 @@
     }
 
     .book-title {
-      @apply text-sm mb-1 line-clamp-2;
+      @apply text-sm mb-1 line-clamp-2 font-bold;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+
+    .book-badges {
+      @apply top-1.5 inset-x-1.5;
+    }
+
+    .rating-image {
+      @apply h-4 w-auto object-contain;
+      max-height: 16px;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 2px;
+      padding: 1px;
+      backdrop-filter: blur(2px);
+    }
+
+    .rating-image.finished-reading {
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .badge {
+      @apply px-1 py-0.5 text-xs;
     }
 
     .pagination {
@@ -367,6 +541,64 @@
 
     .page-jump {
       @apply mt-2;
+    }
+  }
+
+  /* 搜索界面优化 */
+  .search-container {
+    @apply flex flex-col sm:flex-row gap-4 items-stretch sm:items-center;
+  }
+
+  .search-input-container {
+    @apply relative flex-1 max-w-md;
+  }
+
+  .search-input {
+    @apply w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl;
+    @apply focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+    @apply bg-white/80 backdrop-blur-sm transition-all duration-200;
+    @apply placeholder-gray-500;
+  }
+
+  .search-input:focus {
+    @apply shadow-lg bg-white;
+  }
+
+  .search-clear-btn {
+    @apply absolute inset-y-0 right-0 pr-3 flex items-center;
+    @apply text-gray-400 hover:text-gray-600 transition-colors duration-200;
+  }
+
+  .filter-container {
+    @apply flex items-center gap-2;
+  }
+
+  .filter-select {
+    @apply px-3 py-2 border border-gray-300 rounded-lg;
+    @apply focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+    @apply bg-white/80 backdrop-blur-sm transition-all duration-200;
+  }
+
+  .search-status {
+    @apply text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg border;
+    @apply flex items-center gap-2;
+  }
+
+  @media (max-width: 640px) {
+    .search-container {
+      @apply flex-col gap-3;
+    }
+
+    .search-input-container {
+      @apply max-w-none;
+    }
+
+    .filter-container {
+      @apply justify-between;
+    }
+
+    .search-status {
+      @apply justify-center;
     }
   }
 }

@@ -344,7 +344,13 @@ class WeReadAPI:
             shelf = initial_state.get("shelf", {})
             if not shelf:
                 print("❌ 未找到 shelf 数据")
+                # 打印initial_state的顶级键来调试
+                print(f"🔍 initial_state 可用键: {list(initial_state.keys())}")
                 return []
+
+            print(f"🔍 shelf 数据结构调试:")
+            print(f"   shelf 键: {list(shelf.keys())}")
+            print(f"   shelf 数据大小: {len(str(shelf))} 字符")
 
             # 🎯 综合使用 rawBooks 和 rawIndexes 获取完整书籍列表
             print("🎯 综合使用 rawBooks 和 rawIndexes 获取完整书籍列表")
@@ -354,6 +360,28 @@ class WeReadAPI:
 
             print(f"📚 找到 rawBooks: {len(raw_books)} 本书")
             print(f"📋 找到 rawIndexes: {len(raw_indexes)} 个索引")
+
+            # 如果没有找到数据，尝试查找其他可能的字段
+            if len(raw_books) == 0 and len(raw_indexes) == 0:
+                print("🔍 探索其他可能的数据字段:")
+                for key, value in shelf.items():
+                    if isinstance(value, list) and len(value) > 0:
+                        print(f"   发现非空列表字段: '{key}' ({len(value)} 项)")
+                        if len(value) > 0 and isinstance(value[0], dict):
+                            sample_keys = list(value[0].keys()) if value[0] else []
+                            print(f"     首项键: {sample_keys[:10]}...")  # 只显示前10个键
+                    elif isinstance(value, dict) and len(value) > 0:
+                        print(f"   发现非空字典字段: '{key}' ({len(value)} 项)")
+                        if 'books' in str(value).lower():
+                            print(f"     可能包含书籍数据: {list(value.keys())[:10]}")
+
+                # 尝试查找包含bookId的字段
+                for key, value in shelf.items():
+                    if isinstance(value, list):
+                        for item in value[:3]:  # 只检查前3项
+                            if isinstance(item, dict) and 'bookId' in item:
+                                print(f"✨ 在 '{key}' 中发现包含bookId的数据: {item.get('bookId')}")
+                                break
 
             # 1. 先建立 rawBooks 的 bookId -> book 映射
             raw_books_dict = {}
@@ -641,21 +669,38 @@ class WeReadAPI:
         # 处理评分信息
         new_rating = book_data.get('newRating', 0)
         new_rating_detail = book_data.get('newRatingDetail', {})
-        
+
+        # 定义评分映射，确保与前端getRatingImage函数一致
+        valid_ratings = ['神作', '好评如潮', '脍炙人口', '值得一读', '褒贬不一', '不值一读']
+
         if isinstance(new_rating_detail, dict):
             rating_title = new_rating_detail.get('title', '')
-            if new_rating and rating_title:
+            # 检查是否为有效的评分标题
+            if rating_title in valid_ratings:
+                rating_info = rating_title
+                print(f"✅ HTML解析-有效评分: '{rating_title}' (书籍: {book_data.get('title', '')})")
+            elif new_rating and rating_title:
                 rating_info = f"{rating_title} ({new_rating}/1000)"
+                print(f"📊 HTML解析-评分+数字: '{rating_info}' (书籍: {book_data.get('title', '')})")
             elif rating_title:
                 rating_info = rating_title
+                print(f"🔤 HTML解析-纯文本评分: '{rating_title}' (书籍: {book_data.get('title', '')})")
             elif new_rating:
                 rating_info = f"评分: {new_rating}/1000"
+                print(f"🔢 HTML解析-纯数字评分: '{rating_info}' (书籍: {book_data.get('title', '')})")
             else:
                 rating_info = ''
         elif isinstance(new_rating_detail, str):
-            rating_info = new_rating_detail
+            # 如果是字符串，检查是否为有效的评分标题
+            if new_rating_detail in valid_ratings:
+                rating_info = new_rating_detail
+                print(f"✅ HTML解析-字符串有效评分: '{rating_info}' (书籍: {book_data.get('title', '')})")
+            else:
+                rating_info = new_rating_detail
+                print(f"⚠️ HTML解析-字符串未知评分: '{rating_info}' (书籍: {book_data.get('title', '')})")
         elif new_rating:
             rating_info = f"评分: {new_rating}/1000"
+            print(f"🔢 HTML解析-仅数字评分: '{rating_info}' (书籍: {book_data.get('title', '')})")
         else:
             rating_info = ''
 

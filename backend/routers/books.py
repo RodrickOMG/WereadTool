@@ -232,10 +232,26 @@ async def get_books(
 
                 # 处理评分信息的不同格式
                 rating_detail = book_info.get('newRatingDetail', '')
+
+                # 定义评分映射，确保与前端getRatingImage函数一致
+                valid_ratings = ['神作', '好评如潮', '脍炙人口', '值得一读', '褒贬不一', '不值一读']
+
                 if isinstance(rating_detail, dict):
                     rating_title = rating_detail.get('title', '')
+                    # 保留有效的评分标题，无效的设为空
+                    if rating_title and rating_title not in valid_ratings:
+                        print(f"⚠️ 无效评分标题: '{rating_title}' (书籍: {book.get('title', '')})")
+                        rating_title = ''
+                    else:
+                        print(f"✅ 有效评分标题: '{rating_title}' (书籍: {book.get('title', '')})")
                 elif isinstance(rating_detail, str):
-                    rating_title = rating_detail
+                    # 确保评分标题有效
+                    if rating_detail in valid_ratings:
+                        rating_title = rating_detail
+                        print(f"✅ 字符串评分标题: '{rating_title}' (书籍: {book.get('title', '')})")
+                    else:
+                        print(f"⚠️ 无效字符串评分: '{rating_detail}' (书籍: {book.get('title', '')})")
+                        rating_title = ''
                 else:
                     rating_title = ''
 
