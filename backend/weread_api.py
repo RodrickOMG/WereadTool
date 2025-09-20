@@ -473,7 +473,7 @@ class WeReadAPI:
             books_and_archives = shelf.get("booksAndArchives", [])
             if not books_and_archives:
                 print("❌ 未找到 booksAndArchives 数据")
-                return []
+                raise Exception("❌ 未找到 booksAndArchives 数据")
 
             print(f"📚 找到 booksAndArchives 数组，包含 {len(books_and_archives)} 个项目")
 
@@ -1226,7 +1226,7 @@ class WeReadAPI:
 
             if not html_data or not html_data.get('books'):
                 print("❌ 无法获取书架数据")
-                return html_data
+                raise Exception("❌ 无法获取书架数据")
 
             books_from_html = html_data['books']
             print(f"📚 从HTML获取到 {len(books_from_html)} 本书")

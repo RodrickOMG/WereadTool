@@ -1,12 +1,22 @@
-import React, { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { ArrowLeft, FileText, Download, Star, Book as BookIcon, X } from 'lucide-react'
 import { booksAPI } from '../lib/api'
+import { useAuthStore } from '../stores/authStore'
 
 export default function BookDetailPage() {
   const { bookId } = useParams<{ bookId: string }>()
   const [showImageModal, setShowImageModal] = useState(false)
+  const navigate = useNavigate()
+  const { logout } = useAuthStore()
+
+  // 强制退出登录的函数
+  const forceLogout = () => {
+    console.log('🚨 BookDetail - 强制退出登录');
+    logout();
+    navigate('/login', { replace: true, state: { message: '登录已过期，请重新登录' } });
+  };
 
   // 添加调试日志
   console.log('📚 BookDetailPage - bookId:', bookId)
@@ -63,6 +73,28 @@ export default function BookDetailPage() {
   )
 
   const book = response?.data?.data
+
+  // 检查错误并自动返回登录界面
+  useEffect(() => {
+    if (error) {
+      console.log('🚨 BookDetailPage - 检测到错误:', error);
+      const detail = (error as any).response?.data?.detail;
+      const message = (error as any).message;
+      console.log('🔍 错误详情 - detail:', detail);
+      console.log('🔍 错误详情 - message:', message);
+
+      // 检查是否包含需要自动跳转的错误信息
+      const shouldRedirect = (
+        (typeof detail === 'string' && (detail.includes('未找到 booksAndArchives 数据') || detail.includes('无法获取书架数据') || detail.includes('未知书籍信息'))) ||
+        (typeof message === 'string' && (message.includes('未找到 booksAndArchives 数据') || message.includes('无法获取书架数据') || message.includes('未知书籍信息')))
+      );
+
+      if (shouldRedirect) {
+        console.log('✅ 检测到Cookie失效相关错误，强制退出登录');
+        forceLogout();
+      }
+    }
+  }, [error, navigate]);
 
   if (isLoading) {
     return (

@@ -1,10 +1,11 @@
 import { useForm } from 'react-hook-form'
 import { useMutation, useQueryClient } from 'react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { BookOpen, ExternalLink, HelpCircle } from 'lucide-react'
 import { authAPI, booksAPI } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
+import { useEffect } from 'react'
 
 interface LoginForm {
   cookieString: string
@@ -14,6 +15,15 @@ export default function LoginPage() {
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.state?.message) {
+      toast.error(location.state.message)
+      // Clear the state to prevent the message from showing again on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname])
 
   const {
     register,
@@ -34,17 +44,9 @@ export default function LoginPage() {
           toast.success('登录成功！正在加载书架数据...')
         }
 
-        // 预取书籍数据，确保首页能立即显示
-        try {
-          // 清除所有相关的查询缓存，确保获取最新数据
-          queryClient.removeQueries(['books'])
-          await queryClient.prefetchQuery(['books', 1], () => booksAPI.getBooks(1, 12))
-          console.log('📚 书籍数据预取成功')
-        } catch (error) {
-          console.warn('⚠️ 书籍数据预取失败:', error)
-          // 如果预取失败，至少清除缓存，让首页重新获取
-          queryClient.removeQueries(['books'])
-        }
+        // 清除所有相关的查询缓存，确保首页获取最新数据
+        queryClient.removeQueries(['books'])
+        console.log('📚 已清除书籍缓存，首页将重新获取数据')
 
         // 设置登录标记，让首页知道需要刷新数据
         sessionStorage.setItem('justLoggedIn', 'true')

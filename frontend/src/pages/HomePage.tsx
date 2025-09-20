@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { RefreshCw, Star, Book as BookIcon, CheckCircle, Loader, Search, X, Filter } from 'lucide-react'
 import { booksAPI, searchAPI } from '../lib/api'
 import { useDynamicPageSize } from '../lib/hooks/useDynamicPageSize'
 import type { Book } from '../lib/api'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../stores/authStore'
 
 export default function HomePage() {
   const [page, setPage] = useState(1)
   const [loadingMode, setLoadingMode] = useState<'rawbooks' | 'all' | 'complete'>('rawbooks')
+  const { logout } = useAuthStore()
   const [showAllBooks, setShowAllBooks] = useState(false)
+  const [hasShownSuccessMessage, setHasShownSuccessMessage] = useState(false)
+  const hasHandledLogin = useRef(false)
 
   // 搜索相关状态
   const [searchQuery, setSearchQuery] = useState('')
@@ -23,6 +27,7 @@ export default function HomePage() {
 
   const queryClient = useQueryClient()
   const location = useLocation()
+  const navigate = useNavigate()
 
   // 当pageSize改变时，重置到第一页
   useEffect(() => {
@@ -48,6 +53,9 @@ export default function HomePage() {
   }, [debouncedQuery, searchFilter])
 
   // 主查询：根据加载模式获取书籍
+  // 添加查询键调试
+  console.log('🔑 查询键:', ['books', page, pageSize, loadingMode, searchFilter]);
+
   const {
     data: response,
     isLoading,
@@ -55,22 +63,45 @@ export default function HomePage() {
     refetch,
   } = useQuery(
     ['books', page, pageSize, loadingMode, searchFilter],
-    () => booksAPI.getBooks(page, pageSize, loadingMode, searchFilter),
+    () => {
+      console.log('🚀 执行查询 - page:', page, 'pageSize:', pageSize, 'loadingMode:', loadingMode, 'searchFilter:', searchFilter);
+      return booksAPI.getBooks(page, pageSize, loadingMode, searchFilter);
+    },
     {
       retry: 1,
       staleTime: 1 * 60 * 1000,
       cacheTime: 10 * 60 * 1000,
       onSuccess: (data) => {
-        // 当rawbooks模式加载完成且有待同步书籍时，自动开始加载完整数据
-        if (loadingMode === 'rawbooks' && data?.data?.data?.loading_info?.has_more_to_sync) {
+        const loadingInfo = data?.data?.data?.loading_info;
+        const rawbooksCount = loadingInfo?.rawbooks_count || 0;
+        const totalBooks = loadingInfo?.total_all_books || 0;
+        const hasUnsyncedBooks = rawbooksCount < totalBooks;
+
+        console.log('🎯 onSuccess 触发 - loadingMode:', loadingMode, 'hasShownSuccessMessage:', hasShownSuccessMessage);
+        console.log('📊 同步状态 - rawbooks:', rawbooksCount, 'total:', totalBooks, 'hasUnsynced:', hasUnsyncedBooks);
+
+        // 当rawbooks模式加载完成且有书籍需要同步时，自动开始加载完整数据
+        if (loadingMode === 'rawbooks' && hasUnsyncedBooks) {
+          console.log('📈 rawbooks模式检测到未同步书籍，准备切换到all模式');
           setTimeout(() => {
             setLoadingMode('all')
             setShowAllBooks(true)
+            setHasShownSuccessMessage(false) // 重置标志，以便后续显示 all 模式的完成消息
             toast.info('正在加载剩余书籍数据...', { duration: 2000 })
           }, 1500)
-        } else if (loadingMode === 'all') {
+        } else if (loadingMode === 'all' && !hasShownSuccessMessage) {
+          // all模式完成，显示最终完成消息
+          console.log('✅ all模式完成 - 所有书籍数据加载完成');
           setLoadingMode('complete')
+          setHasShownSuccessMessage(true)
           toast.success('所有书籍数据加载完成')
+        } else if (loadingMode === 'rawbooks' && !hasUnsyncedBooks && !hasShownSuccessMessage) {
+          // rawbooks模式且所有书籍都已同步，直接显示完成
+          console.log('✅ rawbooks模式完成且无需同步 - 书架数据加载完成');
+          setHasShownSuccessMessage(true)
+          toast.success('书架数据加载完成')
+        } else {
+          console.log('⏸️ onSuccess触发但不符合显示消息的条件');
         }
       }
     }
@@ -82,23 +113,16 @@ export default function HomePage() {
     const fromLogin = location.state?.fromLogin ||
                      sessionStorage.getItem('justLoggedIn') === 'true'
 
-    if (fromLogin) {
-      console.log('🔄 检测到登录跳转，强制刷新书籍数据')
-      // 清除登录标记
+    if (fromLogin && !hasHandledLogin.current) {
+      console.log('🔄 检测到登录跳转，重置状态以允许显示成功消息（仅执行一次）')
+      hasHandledLogin.current = true
+      // 清除登录标记和重置成功消息标志
       sessionStorage.removeItem('justLoggedIn')
-      // 显示加载提示
-      toast.loading('正在加载完整书架数据...', { id: 'loading-books' })
-      // 清除查询缓存并重新获取
+      setHasShownSuccessMessage(false)
+      // 清除查询缓存，让组件自然重新获取数据
       queryClient.removeQueries(['books'])
-      refetch().then(() => {
-        toast.dismiss('loading-books')
-        toast.success('书架数据加载完成')
-      }).catch(() => {
-        toast.dismiss('loading-books')
-        toast.error('书架数据加载失败，请手动刷新')
-      })
     }
-  }, [location, queryClient, refetch])
+  }, [location.pathname, queryClient]) // 移除 refetch 依赖，只在路径变化时执行
 
   // 搜索查询
   const {
@@ -134,13 +158,81 @@ export default function HomePage() {
     return books
   }, [books, isActiveSearch])
 
+  useEffect(() => {
+    const areAllBooksInvalid = !isLoading && filteredBooks.length > 0 && filteredBooks.every((book: Book) =>
+      !book.bookId || typeof book.bookId !== 'string' || book.bookId.trim() === '' || book.bookId === 'undefined' || book.bookId === 'null'
+    );
+
+    if (areAllBooksInvalid) {
+      navigate('/login', { replace: true, state: { message: '书籍信息异常，请刷新Cookie后重试' } });
+    }
+  }, [filteredBooks, isLoading, navigate]);
+
   // 计算显示状态
   const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
   const isAutoLoading = loadingMode === 'all' && !isLoading && !isActiveSearch
   const showLoadingIndicator = isInitialLoading || isAutoLoading
 
+  useEffect(() => {
+    if (error) {
+      console.log('🚨 HomePage - 检测到错误:', error);
+      const detail = (error as any).response?.data?.detail;
+      const message = (error as any).message;
+      console.log('🔍 错误详情 - detail:', detail);
+      console.log('🔍 错误详情 - message:', message);
+
+      // 检查详情字符串
+      if (typeof detail === 'string' && (detail.includes('未找到 booksAndArchives 数据') || detail.includes('无法获取书架数据') || detail.includes('未知书籍信息'))) {
+        console.log('✅ 匹配到错误条件，强制退出登录');
+        forceLogout();
+        return;
+      }
+
+      // 检查错误消息
+      if (typeof message === 'string' && (message.includes('未找到 booksAndArchives 数据') || message.includes('无法获取书架数据') || message.includes('未知书籍信息'))) {
+        console.log('✅ 从message匹配到错误条件，强制退出登录');
+        forceLogout();
+        return;
+      }
+
+      console.log('❌ 未匹配到自动跳转条件');
+    }
+  }, [error, navigate]);
+
+  // 强制退出登录的函数
+  const forceLogout = () => {
+    console.log('🚨 强制退出登录');
+    logout(); // 清除本地认证状态
+    navigate('/login', { replace: true, state: { message: '登录已过期，请重新登录' } });
+  };
+
+  // 检查书籍数据为空且没有加载中的情况，可能是Cookie失效
+  useEffect(() => {
+    console.log('🔄 空数据检查 - isLoading:', isLoading, 'error:', !!error, 'books length:', books?.length, 'isInitialLoading:', isInitialLoading);
+
+    if (!isLoading && !error && books && books.length === 0 && !isInitialLoading) {
+      console.log('⏰ 检测到书籍列表为空，启动2秒延迟检查');
+
+      // 使用setTimeout并立即保存定时器ID
+      const timerId = setTimeout(() => {
+        console.log('🚨 2秒后确认书籍列表仍为空，可能是Cookie失效，强制退出登录');
+        forceLogout();
+      }, 2000);
+
+      console.log('⏱️ 定时器已启动，ID:', timerId);
+
+      return () => {
+        console.log('🚫 清理定时器，ID:', timerId);
+        clearTimeout(timerId);
+      };
+    } else {
+      console.log('⭕ 不满足空数据检查条件');
+    }
+  }, [isLoading, error, books, isInitialLoading]);
+
   const handleRefresh = async () => {
     try {
+      setHasShownSuccessMessage(false) // 重置成功消息标志
       await booksAPI.refreshBooks()
       refetch()
       toast.success('书架已刷新')
@@ -734,8 +826,14 @@ export default function HomePage() {
                 <button onClick={handleRefresh} className="btn btn-primary">
                   刷新书架
                 </button>
+                <button
+                  onClick={forceLogout}
+                  className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold px-6 py-2 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  重新登录
+                </button>
                 <p className="text-sm text-gray-500">
-                  如果刷新后仍无数据，请检查微信读书是否有书籍或重新登录
+                  如果刷新后仍无数据，请点击重新登录按钮
                 </p>
               </div>
             </>

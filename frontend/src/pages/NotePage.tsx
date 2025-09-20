@@ -1,15 +1,25 @@
-import React, { useState } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { ArrowLeft, Copy, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { notesAPI } from '../lib/api'
+import { useAuthStore } from '../stores/authStore'
 
 export default function NotePage() {
   const { bookId } = useParams<{ bookId: string }>()
   const [searchParams] = useSearchParams()
   const option = parseInt(searchParams.get('option') || '1')
   const [activeTab, setActiveTab] = useState<'preview' | 'markdown'>('preview')
+  const navigate = useNavigate()
+  const { logout } = useAuthStore()
+
+  // 强制退出登录的函数
+  const forceLogout = () => {
+    console.log('🚨 NotePage - 强制退出登录');
+    logout();
+    navigate('/login', { replace: true, state: { message: '登录已过期，请重新登录' } });
+  };
 
   const { data: response, isLoading, error } = useQuery(
     ['notes', bookId, option],
@@ -18,6 +28,28 @@ export default function NotePage() {
   )
 
   const noteData = response?.data?.data
+
+  // 检查错误并自动返回登录界面
+  useEffect(() => {
+    if (error) {
+      console.log('🚨 NotePage - 检测到错误:', error);
+      const detail = (error as any).response?.data?.detail;
+      const message = (error as any).message;
+      console.log('🔍 错误详情 - detail:', detail);
+      console.log('🔍 错误详情 - message:', message);
+
+      // 检查是否包含需要自动跳转的错误信息
+      const shouldRedirect = (
+        (typeof detail === 'string' && (detail.includes('未找到 booksAndArchives 数据') || detail.includes('无法获取书架数据') || detail.includes('未知书籍信息'))) ||
+        (typeof message === 'string' && (message.includes('未找到 booksAndArchives 数据') || message.includes('无法获取书架数据') || message.includes('未知书籍信息')))
+      );
+
+      if (shouldRedirect) {
+        console.log('✅ 检测到Cookie失效相关错误，强制退出登录');
+        forceLogout();
+      }
+    }
+  }, [error, navigate]);
 
   const copyToClipboard = async () => {
     if (noteData?.markdown_content) {
