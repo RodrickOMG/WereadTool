@@ -29,7 +29,7 @@ def get_user_cookies(user: User) -> str:
     }
     return '; '.join([f'{key}={value}' for key, value in cookies.items()])
 
-@router.get("/", response_model=APIResponse)
+@router.get("", response_model=APIResponse)
 async def search_books(
     q: str = Query(..., description="Search query"),
     page: int = Query(1, ge=1),
@@ -88,7 +88,7 @@ async def search_books(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-@router.get("/suggestions", response_model=APIResponse)
+@router.get("suggestions", response_model=APIResponse)
 async def get_search_suggestions(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(5, ge=1, le=10),

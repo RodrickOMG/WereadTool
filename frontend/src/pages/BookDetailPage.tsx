@@ -290,8 +290,7 @@ export default function BookDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Back Button */}
         <Link
           to="/"
@@ -304,7 +303,7 @@ export default function BookDetailPage() {
         </Link>
 
         {/* Book Details */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/30 overflow-hidden">
           <div className="grid md:grid-cols-3 gap-8 p-8">
             {/* Cover */}
             <div className="flex justify-center">
@@ -374,34 +373,39 @@ export default function BookDetailPage() {
               )}
 
               {/* Actions */}
-              <div className="space-y-4 pt-4">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">阅读笔记</h3>
-                <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Link
-                    to={`/books/${bookId}/notes?option=1`}
-                    className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
-                  >
-                    <div className="bg-white/20 rounded-lg p-2">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold">完整笔记</div>
-                      <div className="text-sm text-white/80">包含所有主要章节</div>
-                    </div>
-                  </Link>
+              <div className="space-y-6 pt-6">
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                    <FileText className="h-6 w-6 mr-3 text-sky-600" />
+                    阅读笔记
+                  </h3>
+                  <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Link
+                      to={`/books/${bookId}/notes?option=1`}
+                      className="group bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-5 rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-[1.02] flex items-center space-x-4 border border-sky-400/20"
+                    >
+                      <div className="bg-white/20 rounded-lg p-3 group-hover:bg-white/30 transition-all duration-300">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-lg">完整笔记</div>
+                        <div className="text-sm text-white/90">包含所有主要章节内容</div>
+                      </div>
+                    </Link>
 
-                  <Link
-                    to={`/books/${bookId}/notes?option=2`}
-                    className="group bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
-                  >
-                    <div className="bg-white/20 rounded-lg p-2">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold">精选笔记</div>
-                      <div className="text-sm text-white/80">仅显示有笔记的章节</div>
-                    </div>
-                  </Link>
+                    <Link
+                      to={`/books/${bookId}/notes?option=2`}
+                      className="group bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold px-6 py-5 rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-[1.02] flex items-center space-x-4 border border-orange-400/20"
+                    >
+                      <div className="bg-white/20 rounded-lg p-3 group-hover:bg-white/30 transition-all duration-300">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-lg">精选笔记</div>
+                        <div className="text-sm text-white/90">仅显示有标注的章节</div>
+                      </div>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -433,7 +437,6 @@ export default function BookDetailPage() {
             </div>
           </div>
         )}
-      </div>
     </div>
   )
 }

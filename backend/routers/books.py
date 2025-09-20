@@ -117,6 +117,19 @@ async def get_books(
                         }
                     )
 
+                # 检查是否是cookie过期
+                if user_data.get('error') == 'cookie_expired':
+                    print("🔐 检测到Cookie过期，需要重新登录")
+                    return APIResponse(
+                        success=False,
+                        message="登录已过期，请重新登录",
+                        data={
+                            "error": "cookie_expired",
+                            "need_login": True,
+                            "redirect_to": "/login"
+                        }
+                    )
+
                 # 检查是否有书籍数据
                 books_list = user_data.get('books', [])
                 if not books_list:
@@ -451,6 +464,19 @@ async def refresh_books(
         # 使用增强版方法获取完整书架数据
         print("🔄 刷新书架：使用增强版方法获取数据（包括rawBooks和rawIndexes）")
         user_data = weread_api.get_user_data_enhanced(current_user.wr_vid)
+
+        # 检查是否是cookie过期
+        if user_data.get('error') == 'cookie_expired':
+            print("🔐 刷新时检测到Cookie过期，需要重新登录")
+            return APIResponse(
+                success=False,
+                message="登录已过期，请重新登录",
+                data={
+                    "error": "cookie_expired",
+                    "need_login": True,
+                    "redirect_to": "/login"
+                }
+            )
 
         # Update cached data
         user_books = db.query(UserBooks).filter(UserBooks.user_id == current_user.id).first()

@@ -29,8 +29,12 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center space-x-3">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                <BookOpen className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/10 backdrop-blur-sm p-1">
+                <img
+                  src="/src/static/images/weread.png"
+                  alt="微信读书"
+                  className="w-full h-full object-cover rounded-lg"
+                />
               </div>
               <h1 className="text-xl font-bold text-white tracking-wide">微信读书助手</h1>
             </div>

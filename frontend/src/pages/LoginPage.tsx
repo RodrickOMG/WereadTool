@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from 'react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { BookOpen, ExternalLink, HelpCircle } from 'lucide-react'
-import { authAPI, booksAPI } from '../lib/api'
+import { authAPI } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 import { useEffect } from 'react'
 
@@ -111,25 +111,28 @@ export default function LoginPage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
             <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
-                <BookOpen className="h-10 w-10 text-white" />
+              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg">
+                <img
+                  src="/src/static/images/weread.png"
+                  alt="微信读书"
+                  className="w-full h-full object-cover rounded-2xl"
+                />
               </div>
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">WeRead Tool</h1>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-3">WeRead Tool</h1>
             <p className="text-xl text-gray-600 mb-4">微信读书助手</p>
-            <p className="text-sm text-gray-500">参考 mcp-server-weread 项目实现</p>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             {/* 左侧：登录表单 */}
             <div className="order-2 lg:order-1">
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">粘贴Cookie登录</h2>
                   <p className="text-gray-600">将右侧获取的完整Cookie字符串粘贴到下方</p>
@@ -153,7 +156,7 @@ export default function LoginPage() {
                         }
                       })}
                       rows={6}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-mono text-sm"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors font-mono text-sm bg-white/50"
                       placeholder="请粘贴从Network面板获取的完整Cookie字符串，例如：
 pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_fp=982590028; 其他cookie..."
                     />
@@ -161,14 +164,14 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
                       <p className="mt-2 text-sm text-red-600">{errors.cookieString.message}</p>
                     )}
                     
-                    <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="mt-3 p-3 bg-sky-50 rounded-lg border border-sky-200">
                       <div className="flex items-start gap-2">
-                        <div className="flex-shrink-0 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">
+                        <div className="flex-shrink-0 w-5 h-5 bg-sky-500 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">
                           ℹ
                         </div>
-                        <div className="text-sm text-blue-800">
+                        <div className="text-sm text-sky-800">
                           <p className="font-medium mb-1">提示：</p>
-                          <ul className="space-y-1 text-blue-700">
+                          <ul className="space-y-1 text-sky-700">
                             <li>• 必须从Network面板获取Cookie（document.cookie不完整）</li>
                             <li>• 确保包含 wr_gid、wr_vid、wr_skey、wr_rt 四个字段</li>
                             <li>• 直接粘贴完整字符串，系统会自动解析</li>
@@ -181,7 +184,7 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
                   <button
                     type="submit"
                     disabled={loginMutation.isLoading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg text-lg"
+                    className="w-full bg-gradient-to-r from-sky-600 to-sky-700 text-white py-4 px-6 rounded-lg font-semibold hover:from-sky-700 hover:to-sky-800 focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
                   >
                     {loginMutation.isLoading ? (
                       <div className="flex items-center justify-center gap-3">
@@ -198,20 +201,20 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
 
             {/* 右侧：获取指导 */}
             <div className="order-1 lg:order-2">
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+                <div className="bg-gradient-to-r from-sky-600 to-sky-700 px-6 py-4">
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     <HelpCircle className="h-5 w-5" />
                     Cookie 获取指导
                   </h3>
-                  <p className="text-blue-100 text-sm mt-1">参考 mcp-server-weread 项目方法</p>
+                  <p className="text-sky-100 text-sm mt-1">参考 mcp-server-weread 项目方法</p>
                 </div>
 
                 <div className="p-6">
                   <div className="space-y-6">
                     {/* 步骤1 */}
                     <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-sm">
+                      <div className="flex-shrink-0 w-8 h-8 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center font-bold text-sm">
                         1
                       </div>
                       <div>
@@ -219,7 +222,7 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
                         <p className="text-gray-600 text-sm mb-3">在Chrome浏览器中打开微信读书网页版</p>
                         <button
                           onClick={() => window.open('https://weread.qq.com', '_blank')}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm rounded-lg hover:bg-sky-700 transition-colors"
                         >
                           <ExternalLink className="h-4 w-4" />
                           打开微信读书
@@ -229,7 +232,7 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
 
                     {/* 步骤2 */}
                     <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-sm">
+                      <div className="flex-shrink-0 w-8 h-8 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center font-bold text-sm">
                         2
                       </div>
                       <div>
@@ -240,7 +243,7 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
 
                     {/* 步骤3 */}
                     <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-sm">
+                      <div className="flex-shrink-0 w-8 h-8 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center font-bold text-sm">
                         3
                       </div>
                       <div>
@@ -287,11 +290,11 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
                             </ol>
                           </div>
 
-                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                            <p className="text-sm text-blue-800 mb-2">
+                          <div className="bg-sky-50 rounded-lg p-4 border border-sky-200">
+                            <p className="text-sm text-sky-800 mb-2">
                               <strong>💡 提示</strong>：寻找包含以下字段的Cookie字符串
                             </p>
-                            <div className="text-xs text-blue-700 grid grid-cols-2 gap-1">
+                            <div className="text-xs text-sky-700 grid grid-cols-2 gap-1">
                               <span>• wr_gid=...</span>
                               <span>• wr_vid=...</span>
                               <span>• wr_skey=...</span>
@@ -328,33 +331,6 @@ pgv_pvid=123; wr_gid=209373411; wr_vid=67890; wr_skey=abc123; wr_rt=def456; wr_f
             </div>
           </div>
 
-          {/* 底部信息 */}
-          <div className="mt-12 text-center">
-            <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-              <p className="text-gray-600 mb-4">
-                本项目参考了优秀的开源项目实现思路，确保稳定性和兼容性
-              </p>
-              <div className="flex justify-center items-center gap-6 text-sm text-gray-500">
-                <a 
-                  href="https://github.com/freestylefly/mcp-server-weread" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-blue-600 transition-colors"
-                >
-                  📖 mcp-server-weread
-                </a>
-                <span>•</span>
-                <a 
-                  href="https://github.com/arry-lee/wereader" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-blue-600 transition-colors"
-                >
-                  🔧 arry-lee/wereader
-                </a>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

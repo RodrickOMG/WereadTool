@@ -14,6 +14,11 @@ try:
 except ImportError:
     from config_simple import settings
 
+
+class CookieExpiredException(Exception):
+    """Cookie过期异常"""
+    pass
+
 requests.packages.urllib3.disable_warnings()
 
 class WeReadAPI:
@@ -473,7 +478,28 @@ class WeReadAPI:
             books_and_archives = shelf.get("booksAndArchives", [])
             if not books_and_archives:
                 print("❌ 未找到 booksAndArchives 数据")
-                raise Exception("❌ 未找到 booksAndArchives 数据")
+                print("🔍 可用的shelf字段:")
+                for key, value in shelf.items():
+                    if isinstance(value, (list, dict)):
+                        print(f"   {key}: {type(value).__name__}(长度={len(value)})")
+                    else:
+                        print(f"   {key}: {type(value).__name__}")
+
+                # 尝试查找任何包含书籍信息的字段
+                book_fields = []
+                for key, value in shelf.items():
+                    if isinstance(value, list) and value:
+                        first_item = value[0] if isinstance(value[0], dict) else {}
+                        if 'bookId' in str(first_item) or 'title' in str(first_item):
+                            book_fields.append(key)
+
+                if book_fields:
+                    print(f"🔍 发现可能包含书籍的字段: {book_fields}")
+                    return []  # 返回空列表而不是抛出异常
+                else:
+                    # 检查是否是cookie过期导致的问题
+                    self._check_cookie_expiration(shelf)
+                    raise Exception("❌ 未找到 booksAndArchives 数据且无其他可用书籍字段")
 
             print(f"📚 找到 booksAndArchives 数组，包含 {len(books_and_archives)} 个项目")
 
@@ -548,6 +574,30 @@ class WeReadAPI:
             import traceback
             traceback.print_exc()
             return []
+
+    def _check_cookie_expiration(self, shelf: dict) -> bool:
+        """
+        检查是否因为cookie过期导致无法获取书籍数据
+        当所有书籍相关字段都为空时，很可能是登录状态失效
+        """
+        empty_book_fields = [
+            'books', 'rawBooks', 'booksAndArchives', 'rawIndexes',
+            'shelfIndexes', 'updatedBooks', 'bookProgress'
+        ]
+
+        all_empty = True
+        for field in empty_book_fields:
+            if shelf.get(field) and len(shelf.get(field, [])) > 0:
+                all_empty = False
+                break
+
+        if all_empty:
+            print("🔍 检测到所有书籍字段都为空，可能是cookie过期")
+            print("💡 建议：请检查登录状态或重新登录")
+            # 可以在这里抛出特定的异常类型来区分cookie过期和其他错误
+            raise CookieExpiredException("Cookie可能已过期，请重新登录")
+
+        return False
 
     def _debug_initial_state_structure(self, initial_state: Dict) -> None:
         """
@@ -1374,6 +1424,15 @@ class WeReadAPI:
 
             return enhanced_data
 
+        except CookieExpiredException as e:
+            print(f"🔐 {e}")
+            return {
+                'books': [],
+                'bookProgress': [],
+                'error': 'cookie_expired',
+                'message': 'Cookie已过期，请重新登录',
+                'need_login': True
+            }
         except Exception as e:
             print(f"❌ 增强版数据获取失败: {e}")
             # 回退到原始HTML数据

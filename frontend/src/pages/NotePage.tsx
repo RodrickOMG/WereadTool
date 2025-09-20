@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from 'react-query'
-import { ArrowLeft, Copy, Download, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Copy, Download, ChevronUp, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { notesAPI } from '../lib/api'
+import { notesAPI, booksAPI } from '../lib/api'
 import { useAuthStore } from '../stores/authStore'
 
 // Improved Markdown Renderer Component
@@ -129,11 +129,23 @@ export default function NotePage() {
     { enabled: !!bookId }
   )
 
+  // 获取书籍详情（用于封面）
+  const { data: bookResponse } = useQuery(
+    ['book', bookId],
+    () => booksAPI.getBook(bookId!),
+    { enabled: !!bookId }
+  )
+
   // 更新URL参数和重新获取数据
   const handleNoteModeChange = (newMode: 1 | 2) => {
     setNoteMode(newMode)
     setSearchParams({ option: newMode.toString() })
   }
+
+  // 进入页面时自动滚动到顶部
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   // 滚动监听
   useEffect(() => {
@@ -193,6 +205,7 @@ export default function NotePage() {
   }
 
   const noteData = response?.data?.data
+  const bookData = bookResponse?.data?.data
 
   // 检查错误并自动返回登录界面
   useEffect(() => {
@@ -371,42 +384,72 @@ export default function NotePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Reading Progress Bar */}
-      <div className="fixed top-0 left-0 w-full h-1 bg-gray-200 z-50">
-        <div
-          className="h-full bg-sky-600 transition-all duration-300 ease-out"
-          style={{ width: `${readingProgress}%` }}
-        />
-      </div>
+    <div className="min-h-screen">
 
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-sky-600 to-sky-700 shadow-lg border-b border-sky-500/20 text-white">
+      <div className="bg-gradient-to-br from-white to-slate-50 border-b border-slate-200/50">
         <div className="max-w-4xl mx-auto px-4 py-8">
           {/* Back Button */}
           <Link
             to={`/books/${bookId}`}
-            className="inline-flex items-center space-x-2 text-white/80 hover:text-white mb-6 transition-colors"
+            className="inline-flex items-center space-x-3 text-slate-600 hover:text-sky-600 mb-8 transition-all duration-200 group"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>返回书籍详情</span>
+            <div className="bg-slate-100 group-hover:bg-sky-50 rounded-lg p-2 transition-all duration-200">
+              <ArrowLeft className="h-4 w-4 group-hover:text-sky-600" />
+            </div>
+            <span className="font-medium">返回书籍详情</span>
           </Link>
 
           {/* Title Section */}
-          <div className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">
-              《{noteData.book_title}》
-            </h1>
-            <p className="text-white/80 text-lg">阅读笔记</p>
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50">
+            <div className="flex items-start space-x-4">
+              {/* Book Cover */}
+              <div className="flex-shrink-0">
+                {bookData?.cover ? (
+                  <div className="relative group">
+                    <img
+                      src={bookData.cover}
+                      alt={noteData.book_title}
+                      className="w-16 h-20 md:w-20 md:h-24 object-cover rounded-lg shadow-lg border border-gray-200/50 group-hover:shadow-xl transition-all duration-200"
+                    />
+                    <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl p-3 shadow-lg w-16 h-20 md:w-20 md:h-24 flex items-center justify-center">
+                    <FileText className="h-8 w-8 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-3 leading-tight">
+                  《{noteData.book_title}》
+                </h1>
+                <div className="flex items-center space-x-3">
+                  <span className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-sky-50 to-sky-100 text-sky-700 rounded-lg text-sm font-medium border border-sky-200/50">
+                    <FileText className="h-4 w-4 mr-2" />
+                    阅读笔记
+                  </span>
+                  <span className="text-slate-500 text-sm">
+                    {noteMode === 1 ? '完整版本' : '精选版本'}
+                  </span>
+                </div>
+                {/* 作者信息 */}
+                {bookData?.author && (
+                  <div className="mt-2 text-slate-600 text-sm">
+                    作者：{bookData.author}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 py-8 relative">
 
         {/* Control Panel */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             {/* Left: Mode Selector */}
             <div className="flex items-center space-x-4">
@@ -416,7 +459,7 @@ export default function NotePage() {
                   onClick={() => handleNoteModeChange(1)}
                   className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
                     noteMode === 1
-                      ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700 scale-105'
+                      ? 'bg-sky-600 text-white shadow-md hover:bg-sky-700 scale-105'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-105'
                   }`}
                   title="显示所有主要章节 (Ctrl+1)"
@@ -454,7 +497,7 @@ export default function NotePage() {
               </button>
               <button
                 onClick={downloadMarkdown}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                 title="下载为Markdown文件 (Ctrl+Shift+D)"
               >
                 <Download className="h-4 w-4" />
@@ -470,14 +513,14 @@ export default function NotePage() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-lg mb-8 overflow-hidden">
-          <div className="flex">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 mb-8 overflow-hidden">
+          <div className="flex p-2 bg-slate-50/50">
             <button
               onClick={() => setActiveTab('preview')}
-              className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 ${
+              className={`flex-1 py-3 px-6 text-center font-medium rounded-xl transition-all duration-200 ${
                 activeTab === 'preview'
-                  ? 'bg-blue-600 text-white shadow-md transform scale-105'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 hover:scale-105'
+                  ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-md'
+                  : 'text-slate-600 hover:bg-white/80 hover:shadow-sm'
               }`}
               title="预览渲染后的笔记 (Tab)"
             >
@@ -485,10 +528,10 @@ export default function NotePage() {
             </button>
             <button
               onClick={() => setActiveTab('markdown')}
-              className={`flex-1 py-4 px-6 text-center font-medium transition-all duration-200 ${
+              className={`flex-1 py-3 px-6 text-center font-medium rounded-xl transition-all duration-200 ${
                 activeTab === 'markdown'
-                  ? 'bg-gray-800 text-white shadow-md transform scale-105'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 hover:scale-105'
+                  ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white shadow-md'
+                  : 'text-slate-600 hover:bg-white/80 hover:shadow-sm'
               }`}
               title="查看Markdown源码 (Tab)"
             >
@@ -498,7 +541,7 @@ export default function NotePage() {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden mb-8">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden mb-8">
           {(!noteData.markdown_content || noteData.markdown_content.trim() === '') ? (
             <div className="p-12 text-center">
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
@@ -571,7 +614,7 @@ export default function NotePage() {
         {showScrollTop && (
           <button
             onClick={scrollToTop}
-            className="fixed bottom-8 right-8 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-50"
+            className="fixed bottom-8 right-8 bg-sky-600 hover:bg-sky-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-50"
             title="返回顶部"
           >
             <ChevronUp className="h-6 w-6" />

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from 'react-query'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { RefreshCw, Star, Book as BookIcon, CheckCircle, Loader, Search, X, Filter } from 'lucide-react'
-import { booksAPI, searchAPI } from '../lib/api'
+import { booksAPI, searchAPI, cache } from '../lib/api'
 import { useDynamicPageSize } from '../lib/hooks/useDynamicPageSize'
 import type { Book } from '../lib/api'
 import toast from 'react-hot-toast'
@@ -72,6 +72,15 @@ export default function HomePage() {
       staleTime: 1 * 60 * 1000,
       cacheTime: 10 * 60 * 1000,
       onSuccess: (data) => {
+        // 检查是否是cookie过期 - 支持两种可能的数据结构
+        if (data?.data?.data?.error === 'cookie_expired' || data?.data?.error === 'cookie_expired') {
+          console.log('🔐 检测到Cookie过期，跳转到登录页');
+          toast.error('登录已过期，请重新登录');
+          logout();
+          navigate('/login', { replace: true });
+          return;
+        }
+
         const loadingInfo = data?.data?.data?.loading_info;
         const rawbooksCount = loadingInfo?.rawbooks_count || 0;
         const totalBooks = loadingInfo?.total_all_books || 0;
@@ -128,7 +137,9 @@ export default function HomePage() {
       sessionStorage.removeItem('justLoggedIn')
       setHasShownSuccessMessage(false)
 
-      // 清除查询缓存，让组件自然重新获取数据
+      // 清除所有缓存，确保获取最新数据
+      console.log('🗑️ 登录后清除所有缓存')
+      cache.clear()
       queryClient.removeQueries(['books'])
 
       // 如果5秒后仍然没有数据，尝试手动刷新
@@ -179,10 +190,41 @@ export default function HomePage() {
   const currentResponse = isActiveSearch ? searchResponse : response
   const currentIsLoading = isActiveSearch ? isSearchLoading : isLoading
 
-  const books = currentResponse?.data?.data?.books || currentResponse?.data?.data?.results || []
-  const totalPages = currentResponse?.data?.data?.total_pages || 1
-  const total = currentResponse?.data?.data?.total || 0
-  const loadingInfo = response?.data?.data?.loading_info
+  // 解析响应数据
+  const books = currentResponse?.data?.data?.books || currentResponse?.data?.books || currentResponse?.data?.data?.results || []
+  const totalPages = currentResponse?.data?.data?.total_pages || currentResponse?.data?.total_pages || 1
+  const total = currentResponse?.data?.data?.total || currentResponse?.data?.total || 0
+  const loadingInfo = response?.data?.data?.loading_info || response?.data?.loading_info
+
+  console.log('🔍 调试响应结构:', {
+    currentResponse: currentResponse,
+    dataLevel1: currentResponse?.data,
+    dataLevel2: currentResponse?.data?.data,
+    books: books,
+    booksCount: books?.length || 0,
+  });
+
+  // 开发者调试功能
+  useEffect(() => {
+    // 全局暴露调试函数
+    (window as any).debugWeread = {
+      clearCache: () => {
+        cache.clear()
+        console.log('🗑️ 手动清除所有缓存')
+      },
+      debugCache: () => cache.debug(),
+      refetch: () => {
+        console.log('🔄 手动重新获取数据')
+        refetch()
+      },
+      currentData: {
+        books: books,
+        total: total,
+        page: page,
+        response: currentResponse
+      }
+    }
+  }, [books, total, page, currentResponse, refetch]);
 
   // 计算显示状态 - 移到这里，在使用前定义
   const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
@@ -276,7 +318,22 @@ export default function HomePage() {
   const handleRefresh = async () => {
     try {
       setHasShownSuccessMessage(false) // 重置成功消息标志
-      await booksAPI.refreshBooks()
+
+      // 强制清除所有缓存
+      console.log('🗑️ 强制清除所有缓存')
+      cache.clear()
+
+      const result = await booksAPI.refreshBooks()
+
+      // 检查是否是cookie过期 - 支持两种可能的数据结构
+      if (result?.data?.error === 'cookie_expired' || result?.data?.data?.error === 'cookie_expired') {
+        console.log('🔐 刷新时检测到Cookie过期，跳转到登录页');
+        toast.error('登录已过期，请重新登录');
+        logout();
+        navigate('/login', { replace: true });
+        return;
+      }
+
       refetch()
       toast.success('书架已刷新')
     } catch (error) {
@@ -451,8 +508,12 @@ export default function HomePage() {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-br from-white/95 to-red-50/80 backdrop-blur-sm rounded-2xl shadow-xl border border-red-200/50">
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-full p-4 w-20 h-20 mx-auto mb-6 shadow-lg">
-            <BookIcon className="h-12 w-12 text-white" />
+          <div className="w-20 h-20 mx-auto mb-6">
+            <img
+              src="/src/static/images/weread.png"
+              alt="微信读书"
+              className="w-full h-full object-cover rounded-2xl shadow-lg opacity-60"
+            />
           </div>
           <h3 className="text-xl font-bold text-gray-800 mb-3">书架加载失败</h3>
           <p className="text-gray-600 mb-6">抱歉，无法获取书籍数据，请检查网络连接或稍后重试</p>
@@ -860,7 +921,13 @@ export default function HomePage() {
             </>
           ) : (
             <>
-              <BookIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <div className="w-12 h-12 mx-auto mb-4">
+                <img
+                  src="/src/static/images/weread.png"
+                  alt="微信读书"
+                  className="w-full h-full object-cover rounded-lg opacity-40"
+                />
+              </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">暂无书籍</h3>
               <p className="text-gray-600 mb-4">
                 书架是空的，可能需要刷新来加载最新数据
