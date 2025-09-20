@@ -35,3 +35,15 @@ class BookCache(Base):
     book_info = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class BookNoteSync(Base):
+    __tablename__ = "book_note_sync"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    book_id = Column(String, index=True)
+    sync_key = Column(String, default="0")  # 存储上次同步的synckey
+    last_sync_time = Column(DateTime(timezone=True))
+    notes_data = Column(JSON)  # 存储笔记数据
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

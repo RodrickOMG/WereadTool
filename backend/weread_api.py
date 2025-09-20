@@ -1012,36 +1012,106 @@ class WeReadAPI:
             "source": "api_error"
         }
 
-    def get_sorted_chapters(self, book_id: str) -> List[Tuple]:
-        """Get sorted chapters of a book"""
+    def get_sorted_chapters(self, book_id: str, level_filter: int = None) -> List[Tuple]:
+        """
+        Get sorted chapters of a book using POST request
+        Args:
+            book_id: 书籍ID
+            level_filter: 过滤等级，如果指定则只返回该等级的章节
+        """
         if '_' in book_id:
             return []  # WeChat articles not supported
 
-        url = f"{settings.weread_base_url}/book/chapterInfos?bookIds={book_id}&synckeys=0"
-        data = self.request_data(url)
-        chapters = []
+        # 使用官方的POST请求格式获取章节信息
+        url = f"https://weread.qq.com/web/book/chapterInfos"
 
-        for item in data['data'][0]['updated']:
-            try:
-                chapters.append((item['chapterUid'], item['level'], item['title']))
-            except:
-                chapters.append((item['chapterUid'], 1, item['title']))
+        # 构建POST请求头
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Content-Type': 'application/json',
+            'Host': 'weread.qq.com',
+            'Origin': 'https://weread.qq.com',
+            'Pragma': 'no-cache',
+            'Referer': f'https://weread.qq.com/web/reader/{book_id}',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Cookie': self.cookies
+        }
 
-        return chapters
+        # POST请求的payload
+        payload = {
+            "bookIds": [book_id]
+        }
 
-    def get_bookmarks(self, book_id: str) -> Dict:
-        """Get bookmarks/notes for a book with fallback support"""
+        try:
+            import requests
+            response = requests.post(url, json=payload, headers=headers, verify=False, timeout=15)
+
+            if response.status_code == 200:
+                data = response.json()
+                chapters = []
+
+                if 'data' in data and len(data['data']) > 0 and 'updated' in data['data'][0]:
+                    for item in data['data'][0]['updated']:
+                        chapter_level = item.get('level', 1)
+
+                        # 如果指定了level_filter，只返回匹配的章节
+                        if level_filter is not None and chapter_level != level_filter:
+                            continue
+
+                        chapters.append((
+                            item.get('chapterUid'),
+                            chapter_level,
+                            item.get('title', '未知章节')
+                        ))
+
+                print(f"📖 获取章节信息成功: {len(chapters)} 个章节" + (f" (level={level_filter})" if level_filter else ""))
+                return chapters
+            else:
+                print(f"❌ 章节API返回错误: {response.status_code}")
+                return []
+
+        except Exception as e:
+            print(f"❌ 获取章节信息失败: {book_id} - {str(e)}")
+            return []
+
+    def get_bookmarks(self, book_id: str, sync_key: str = "0") -> Dict:
+        """Get bookmarks/notes for a book with fallback support and synckey"""
+        # 构建与官方完全一致的请求头
+        bookmark_headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Host': 'weread.qq.com',
+            'Pragma': 'no-cache',
+            'Referer': f'https://weread.qq.com/web/reader/{book_id}',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Cookie': self.cookies
+        }
+
+        # 使用官方接口URL，笔记API必须使用 weread.qq.com 域名
         fallback_urls = [
-            f"{settings.weread_base_url}/book/bookmarklist?bookId={book_id}",
-            f"{settings.weread_base_url}/web/book/bookmarklist?bookId={book_id}",
-            f"{settings.weread_base_url}/bookmarks/list?bookId={book_id}"
+            f"https://weread.qq.com/web/book/bookmarklist?bookId={book_id}&syncKey={sync_key}",
+            f"https://weread.qq.com/book/bookmarklist?bookId={book_id}",
+            f"https://weread.qq.com/web/book/bookmarklist?bookId={book_id}"
         ]
 
         last_error = None
         for url in fallback_urls:
             try:
                 print(f"🔄 获取书签: {book_id} - {url.split('/')[-1]}")
-                r = requests.get(url, headers=self.headers, verify=False, timeout=15)
+                r = requests.get(url, headers=bookmark_headers, verify=False, timeout=15)
 
                 if r.status_code == 200:
                     try:
@@ -1309,8 +1379,208 @@ class WeReadAPI:
             # 回退到原始HTML数据
             return self.get_user_data(user_vid)
 
-    def get_markdown_content(self, book_id: str, is_all_chapter: int = 1) -> str:
-        pass
+    def get_markdown_content(self, book_id: str, is_all_chapter: int = 1, sync_key: str = "0") -> Dict:
+        """
+        获取书籍笔记的Markdown内容，支持增量更新
+        返回包含markdown内容和新synckey的字典
+        """
+        try:
+            # 获取书签数据
+            bookmarks_data = self.get_bookmarks(book_id, sync_key)
+
+            if not bookmarks_data:
+                return {
+                    "markdown_content": "",
+                    "sync_key": sync_key,
+                    "has_updates": False
+                }
+
+            # 提取新的synckey
+            new_sync_key = bookmarks_data.get('synckey', sync_key)
+
+            # 检查是否有更新
+            has_updates = bookmarks_data.get('updated', []) or bookmarks_data.get('removed', [])
+
+            # 如果没有更新且synckey相同，返回空内容
+            if sync_key != "0" and not has_updates and new_sync_key == sync_key:
+                return {
+                    "markdown_content": "",
+                    "sync_key": new_sync_key,
+                    "has_updates": False
+                }
+
+            # 获取章节信息
+            sorted_chapters = self.get_sorted_chapters(book_id)
+            chapter_map = {chapter[0]: chapter[2] for chapter in sorted_chapters}
+
+            # 处理书签数据
+            updated_bookmarks = bookmarks_data.get('updated', [])
+            removed_bookmarks = bookmarks_data.get('removed', [])
+
+            # 按章节组织书签
+            chapter_bookmarks = {}
+
+            for bookmark in updated_bookmarks:
+                chapter_uid = bookmark.get('chapterUid')
+                if chapter_uid not in chapter_bookmarks:
+                    chapter_bookmarks[chapter_uid] = []
+                chapter_bookmarks[chapter_uid].append(bookmark)
+
+            # 生成Markdown内容
+            markdown_lines = []
+
+            for chapter in sorted_chapters:
+                chapter_uid, level, title = chapter
+                bookmarks = chapter_bookmarks.get(chapter_uid, [])
+
+                # 如果选择只显示有笔记的章节且当前章节没有笔记，则跳过
+                if is_all_chapter == 2 and not bookmarks:
+                    continue
+
+                # 添加章节标题
+                markdown_lines.append(f"{'#' * (level + 1)} {title}")
+                markdown_lines.append("")
+
+                # 添加该章节的书签
+                for bookmark in sorted(bookmarks, key=lambda x: x.get('range', '')):
+                    # 添加标注内容
+                    marked_text = bookmark.get('markText', '').strip()
+                    if marked_text:
+                        markdown_lines.append(marked_text)
+                        markdown_lines.append("")
+
+                    # 添加笔记内容
+                    note_text = bookmark.get('noteText', '').strip()
+                    if note_text:
+                        markdown_lines.append(f"**笔记：** {note_text}")
+                        markdown_lines.append("")
+
+                markdown_lines.append("")
+
+            markdown_content = '\n'.join(markdown_lines)
+
+            return {
+                "markdown_content": markdown_content,
+                "sync_key": new_sync_key,
+                "has_updates": bool(has_updates),
+                "updated_count": len(updated_bookmarks),
+                "removed_count": len(removed_bookmarks),
+                "removed_ids": [bookmark.get('bookmarkId') for bookmark in removed_bookmarks]
+            }
+
+        except Exception as e:
+            print(f"❌ 获取Markdown内容失败: {str(e)}")
+            return {
+                "markdown_content": "",
+                "sync_key": sync_key,
+                "has_updates": False,
+                "error": str(e)
+            }
+
+    def get_markdown_content_simple(self, book_id: str, is_all_chapter: int = 1) -> str:
+        """
+        简单获取书籍笔记的Markdown内容，不使用增量同步
+        直接返回markdown字符串
+        """
+        try:
+            # 获取书签数据 (使用默认synckey=0，获取所有数据)
+            bookmarks_data = self.get_bookmarks(book_id, "0")
+
+            if not bookmarks_data:
+                return ""
+
+            # 使用新的章节信息API获取完整章节结构
+            if is_all_chapter == 1:
+                # 完整笔记：获取level=1的所有章节（主要章节）
+                sorted_chapters = self.get_sorted_chapters(book_id, level_filter=1)
+                print(f"📖 完整笔记模式：获取到 {len(sorted_chapters)} 个主要章节")
+            elif is_all_chapter == 2:
+                # 精选笔记：先获取所有章节，稍后只保留有笔记的章节
+                sorted_chapters = self.get_sorted_chapters(book_id, level_filter=1)
+                print(f"📖 精选笔记模式：获取到 {len(sorted_chapters)} 个主要章节")
+            else:
+                # 默认：获取所有章节
+                sorted_chapters = self.get_sorted_chapters(book_id)
+                print(f"📖 默认模式：获取到 {len(sorted_chapters)} 个章节")
+
+            # 处理书签数据 - 兼容不同的数据结构
+            all_bookmarks = []
+
+            # 检查是否有 'updated' 字段 (增量同步格式)
+            if 'updated' in bookmarks_data:
+                all_bookmarks = bookmarks_data.get('updated', [])
+            # 检查是否有 'bookmarks' 字段 (传统格式)
+            elif 'bookmarks' in bookmarks_data:
+                all_bookmarks = bookmarks_data.get('bookmarks', [])
+            # 检查是否直接是数组
+            elif isinstance(bookmarks_data, list):
+                all_bookmarks = bookmarks_data
+            else:
+                # 尝试从 data 字段获取
+                all_bookmarks = bookmarks_data.get('data', [])
+
+            if not all_bookmarks:
+                return ""
+
+            # 按章节组织书签
+            chapter_bookmarks = {}
+
+            for bookmark in all_bookmarks:
+                chapter_uid = bookmark.get('chapterUid')
+                if chapter_uid not in chapter_bookmarks:
+                    chapter_bookmarks[chapter_uid] = []
+                chapter_bookmarks[chapter_uid].append(bookmark)
+
+            # 生成Markdown内容
+            markdown_lines = []
+            processed_chapters = 0
+            chapters_with_notes = 0
+
+            for chapter in sorted_chapters:
+                chapter_uid, level, title = chapter
+                bookmarks = chapter_bookmarks.get(chapter_uid, [])
+                processed_chapters += 1
+
+                # 如果选择只显示有笔记的章节且当前章节没有笔记，则跳过
+                if is_all_chapter == 2 and not bookmarks:
+                    continue
+
+                # 添加章节标题
+                markdown_lines.append(f"{'#' * (level + 1)} {title}")
+                markdown_lines.append("")
+
+                # 添加该章节的书签
+                bookmark_count = 0
+                for bookmark in sorted(bookmarks, key=lambda x: x.get('range', '')):
+                    bookmark_count += 1
+                    # 添加标注内容
+                    marked_text = bookmark.get('markText', '').strip()
+                    if marked_text:
+                        markdown_lines.append(marked_text)
+                        markdown_lines.append("")
+
+                    # 添加笔记内容
+                    note_text = bookmark.get('noteText', '').strip()
+                    if note_text:
+                        markdown_lines.append(f"**笔记：** {note_text}")
+                        markdown_lines.append("")
+
+                if bookmarks:  # 只有当有书签时才添加空行
+                    chapters_with_notes += 1
+                    markdown_lines.append("")
+
+            print(f"📝 生成Markdown完成: 处理 {processed_chapters} 章节, {chapters_with_notes} 章节有笔记")
+            result = '\n'.join(markdown_lines)
+
+            if not result.strip():
+                print("⚠️ 未找到任何笔记内容")
+                return ""
+
+            return result
+
+        except Exception as e:
+            print(f"❌ 获取Markdown内容失败: {str(e)}")
+            return ""
 
     def search_books(self, user_data: Dict, query: str) -> List[Dict]:
         """

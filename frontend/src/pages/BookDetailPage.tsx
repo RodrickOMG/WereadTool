@@ -11,6 +11,14 @@ export default function BookDetailPage() {
   const navigate = useNavigate()
   const { logout } = useAuthStore()
 
+  // 获取高分辨率封面图片URL
+  const getHighResolutionCover = (coverUrl: string) => {
+    if (coverUrl && coverUrl.includes('t6_')) {
+      return coverUrl.replace('t6_', 't9_')
+    }
+    return coverUrl
+  }
+
   // 强制退出登录的函数
   const forceLogout = () => {
     console.log('🚨 BookDetail - 强制退出登录');
@@ -84,9 +92,28 @@ export default function BookDetailPage() {
       console.log('🔍 错误详情 - message:', message);
 
       // 检查是否包含需要自动跳转的错误信息
-      const shouldRedirect = (
-        (typeof detail === 'string' && (detail.includes('未找到 booksAndArchives 数据') || detail.includes('无法获取书架数据') || detail.includes('未知书籍信息'))) ||
-        (typeof message === 'string' && (message.includes('未找到 booksAndArchives 数据') || message.includes('无法获取书架数据') || message.includes('未知书籍信息')))
+      const errorPatterns = [
+        '未找到 booksAndArchives 数据',
+        '无法获取书架数据',
+        '未知书籍信息',
+        '未知书籍',
+        'BookId is required',
+        'book not found',
+        '书籍不存在',
+        '登录已过期',
+        'unauthorized',
+        'cookie失效',
+        'UNKNOWN_BOOK',
+        'LOGIN_EXPIRED'
+      ];
+
+      // 检查响应数据中的错误字段
+      const responseError = (error as any).response?.data?.data?.error;
+
+      const shouldRedirect = errorPatterns.some(pattern =>
+        (typeof detail === 'string' && detail.toLowerCase().includes(pattern.toLowerCase())) ||
+        (typeof message === 'string' && message.toLowerCase().includes(pattern.toLowerCase())) ||
+        (typeof responseError === 'string' && responseError.toLowerCase().includes(pattern.toLowerCase()))
       );
 
       if (shouldRedirect) {
@@ -285,29 +312,20 @@ export default function BookDetailPage() {
                 className="relative group cursor-pointer"
                 onClick={() => setShowImageModal(true)}
               >
-                {/* 背景光晕效果 */}
-                <div className="absolute -inset-4 bg-gradient-to-r from-sky-400/20 via-blue-500/20 to-purple-600/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-
-                {/* 主要封面容器 */}
-                <div className="relative bg-white p-2 rounded-2xl shadow-2xl group-hover:shadow-3xl transition-all duration-300">
+                {/* 简化的封面容器 */}
+                <div className="relative bg-white p-2 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-200">
                   <img
                     src={book.cover}
                     alt={book.title}
-                    className="w-full max-w-xs mx-auto rounded-xl transform group-hover:scale-[1.02] transition-all duration-300 ease-out"
+                    className="w-full max-w-xs mx-auto rounded-lg transform group-hover:scale-[1.02] transition-all duration-200 ease-out"
                   />
 
-                  {/* 顶部光泽效果 */}
-                  <div className="absolute inset-2 rounded-xl bg-gradient-to-br from-white/40 via-transparent to-transparent opacity-60 pointer-events-none"></div>
-
-                  {/* Hover时的覆盖层 */}
-                  <div className="absolute inset-2 rounded-xl bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-center pb-4">
-                    <div className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                  {/* 简洁的hover提示 */}
+                  <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
+                    <div className="text-white text-sm font-medium bg-black/70 px-3 py-1 rounded-lg backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200">
                       点击查看大图
                     </div>
                   </div>
-
-                  {/* 边框高光效果 */}
-                  <div className="absolute inset-0 rounded-2xl border-2 border-white/20 group-hover:border-sky-400/50 transition-all duration-300"></div>
                 </div>
               </div>
             </div>
@@ -361,27 +379,27 @@ export default function BookDetailPage() {
                 <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-4">
                   <Link
                     to={`/books/${bookId}/notes?option=1`}
-                    className="group bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
+                    className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
                   >
                     <div className="bg-white/20 rounded-lg p-2">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div className="text-left">
                       <div className="font-bold">完整笔记</div>
-                      <div className="text-sm text-white/80">包含所有章节</div>
+                      <div className="text-sm text-white/80">包含所有主要章节</div>
                     </div>
                   </Link>
 
                   <Link
                     to={`/books/${bookId}/notes?option=2`}
-                    className="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
+                    className="group bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
                   >
                     <div className="bg-white/20 rounded-lg p-2">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div className="text-left">
                       <div className="font-bold">精选笔记</div>
-                      <div className="text-sm text-white/80">仅包含有标注的章节</div>
+                      <div className="text-sm text-white/80">仅显示有笔记的章节</div>
                     </div>
                   </Link>
                 </div>
@@ -393,31 +411,25 @@ export default function BookDetailPage() {
         {/* Image Modal */}
         {showImageModal && (
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
             onClick={() => setShowImageModal(false)}
           >
-            <div className="relative max-w-4xl max-h-[90vh] animate-fadeIn">
+            <div className="relative max-w-5xl max-h-[95vh] animate-fadeIn">
               {/* Close Button */}
               <button
                 onClick={() => setShowImageModal(false)}
-                className="absolute -top-12 right-0 bg-white/20 hover:bg-white/30 text-white rounded-full p-2 transition-all duration-200 backdrop-blur-sm"
+                className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-all duration-200 backdrop-blur-sm border border-white/20"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5" />
               </button>
 
-              {/* Large Image */}
+              {/* Pure Large Image */}
               <img
-                src={book.cover}
+                src={getHighResolutionCover(book.cover)}
                 alt={book.title}
-                className="max-w-full max-h-full rounded-2xl shadow-2xl"
+                className="max-w-full max-h-full rounded-lg shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               />
-
-              {/* Image Info */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 rounded-b-2xl">
-                <h3 className="text-white text-xl font-bold mb-1">{book.title}</h3>
-                <p className="text-white/80 text-sm">{book.author}</p>
-              </div>
             </div>
           </div>
         )}

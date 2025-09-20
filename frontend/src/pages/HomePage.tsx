@@ -114,15 +114,50 @@ export default function HomePage() {
                      sessionStorage.getItem('justLoggedIn') === 'true'
 
     if (fromLogin && !hasHandledLogin.current) {
-      console.log('🔄 检测到登录跳转，重置状态以允许显示成功消息（仅执行一次）')
+      console.log('🔄 检测到登录跳转，启动登录后处理流程（仅执行一次）')
       hasHandledLogin.current = true
+
+      // 设置一个较长的保护期，避免刚登录就被误认为cookie失效
+      sessionStorage.setItem('recentLogin', 'true')
+      setTimeout(() => {
+        sessionStorage.removeItem('recentLogin')
+        console.log('🛡️ 登录保护期结束')
+      }, 10000) // 10秒保护期
+
       // 清除登录标记和重置成功消息标志
       sessionStorage.removeItem('justLoggedIn')
       setHasShownSuccessMessage(false)
+
       // 清除查询缓存，让组件自然重新获取数据
       queryClient.removeQueries(['books'])
+
+      // 如果5秒后仍然没有数据，尝试手动刷新
+      const refreshTimer = setTimeout(() => {
+        // 使用查询结果检查书籍数量
+        const booksData = response?.data?.data?.books || []
+        if (booksData.length === 0) {
+          console.log('📚 登录后5秒仍无书籍数据，尝试刷新书架')
+          handleRefresh()
+        }
+      }, 5000)
+
+      // 如果10秒后还是没有数据，给用户提示
+      const notifyTimer = setTimeout(() => {
+        const booksData = response?.data?.data?.books || []
+        if (booksData.length === 0) {
+          console.log('⚠️ 登录后10秒仍无书籍数据，可能书架为空或需要重新获取cookie')
+          toast.error('书架数据为空，请确认微信读书中有书籍或重新获取cookie', {
+            duration: 5000
+          })
+        }
+      }, 10000)
+
+      return () => {
+        clearTimeout(refreshTimer)
+        clearTimeout(notifyTimer)
+      }
     }
-  }, [location.pathname, queryClient]) // 移除 refetch 依赖，只在路径变化时执行
+  }, [location.pathname, queryClient, response?.data?.data?.books?.length]) // 使用response中的数据
 
   // 搜索查询
   const {
@@ -149,6 +184,9 @@ export default function HomePage() {
   const total = currentResponse?.data?.data?.total || 0
   const loadingInfo = response?.data?.data?.loading_info
 
+  // 计算显示状态 - 移到这里，在使用前定义
+  const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
+
   // 书籍列表（筛选已在后端完成）
   const filteredBooks = useMemo(() => {
     // 如果是搜索状态，直接返回搜索结果
@@ -168,8 +206,36 @@ export default function HomePage() {
     }
   }, [filteredBooks, isLoading, navigate]);
 
-  // 计算显示状态
-  const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
+  // 检查书籍数据为空且没有加载中的情况，可能是Cookie失效
+  useEffect(() => {
+    console.log('🔄 空数据检查 - isLoading:', isLoading, 'error:', !!error, 'books length:', books?.length, 'isInitialLoading:', isInitialLoading);
+
+    // 检查是否刚从登录页跳转过来
+    const fromLogin = location.state?.fromLogin ||
+                     sessionStorage.getItem('justLoggedIn') === 'true' ||
+                     sessionStorage.getItem('recentLogin') === 'true';
+
+    if (!isLoading && !error && books && books.length === 0 && !isInitialLoading && !fromLogin) {
+      console.log('⏰ 检测到书籍列表为空，启动5秒延迟检查（避免刚登录后误触发）');
+
+      // 使用setTimeout并立即保存定时器ID，延长到5秒给API更多时间
+      const timerId = setTimeout(() => {
+        console.log('🚨 5秒后确认书籍列表仍为空，可能是Cookie失效，强制退出登录');
+        forceLogout();
+      }, 5000);
+
+      console.log('⏱️ 定时器已启动，ID:', timerId);
+
+      return () => {
+        console.log('🚫 清理定时器，ID:', timerId);
+        clearTimeout(timerId);
+      };
+    } else {
+      console.log('⭕ 不满足空数据检查条件, fromLogin:', fromLogin);
+    }
+  }, [isLoading, error, books, isInitialLoading, location.state?.fromLogin]);
+
+  // 计算其他显示状态
   const isAutoLoading = loadingMode === 'all' && !isLoading && !isActiveSearch
   const showLoadingIndicator = isInitialLoading || isAutoLoading
 
@@ -206,29 +272,6 @@ export default function HomePage() {
     navigate('/login', { replace: true, state: { message: '登录已过期，请重新登录' } });
   };
 
-  // 检查书籍数据为空且没有加载中的情况，可能是Cookie失效
-  useEffect(() => {
-    console.log('🔄 空数据检查 - isLoading:', isLoading, 'error:', !!error, 'books length:', books?.length, 'isInitialLoading:', isInitialLoading);
-
-    if (!isLoading && !error && books && books.length === 0 && !isInitialLoading) {
-      console.log('⏰ 检测到书籍列表为空，启动2秒延迟检查');
-
-      // 使用setTimeout并立即保存定时器ID
-      const timerId = setTimeout(() => {
-        console.log('🚨 2秒后确认书籍列表仍为空，可能是Cookie失效，强制退出登录');
-        forceLogout();
-      }, 2000);
-
-      console.log('⏱️ 定时器已启动，ID:', timerId);
-
-      return () => {
-        console.log('🚫 清理定时器，ID:', timerId);
-        clearTimeout(timerId);
-      };
-    } else {
-      console.log('⭕ 不满足空数据检查条件');
-    }
-  }, [isLoading, error, books, isInitialLoading]);
 
   const handleRefresh = async () => {
     try {

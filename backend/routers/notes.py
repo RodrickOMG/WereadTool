@@ -33,30 +33,48 @@ def get_user_cookies(user: User) -> str:
 async def get_book_notes(
     book_id: str,
     option: int = Query(1, description="1: all chapters, 2: only chapters with notes"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """Get book notes/highlights in markdown format"""
     try:
         cookies = get_user_cookies(current_user)
         weread_api = WeReadAPI(cookies)
 
-        # Get book title
-        book_info = weread_api.get_book_info(book_id)
-        book_title = book_info.get('title', 'Unknown Book')
+        print(f"📚 开始获取笔记 - book_id: {book_id}, option: {option}")
 
-        # Get markdown content
-        markdown_content = weread_api.get_markdown_content(book_id, option)
+        # Get book title
+        try:
+            book_info = weread_api.get_book_info(book_id)
+            book_title = book_info.get('title', 'Unknown Book')
+            print(f"✅ 书籍信息获取成功: {book_title}")
+        except Exception as e:
+            print(f"⚠️ 书籍信息获取失败: {str(e)}")
+            book_title = 'Unknown Book'
+
+        # Get markdown content (这里简化为直接调用，不使用复杂的synckey逻辑)
+        try:
+            markdown_content = weread_api.get_markdown_content_simple(book_id, option)
+            print(f"✅ 笔记内容获取完成 - 长度: {len(markdown_content) if markdown_content else 0}")
+        except Exception as e:
+            print(f"❌ 笔记内容获取失败: {str(e)}")
+            markdown_content = ""
 
         if not markdown_content or markdown_content.strip() == '\n':
             return APIResponse(
                 success=False,
-                message="No notes found for this book",
-                data=None
+                message="该书籍暂无笔记或笔记功能不可用",
+                data={
+                    "book_id": book_id,
+                    "book_title": book_title,
+                    "markdown_content": "",
+                    "html_content": ""
+                }
             )
 
         # Convert to HTML
         html_content = markdown2.markdown(markdown_content)
+
+        print(f"✅ 笔记获取完成 - book_id: {book_id}")
 
         return APIResponse(
             success=True,
@@ -180,3 +198,4 @@ async def export_notes(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export notes: {str(e)}")
+

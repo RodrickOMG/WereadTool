@@ -165,7 +165,10 @@ async def login(login_data: WeReadLogin, db: Session = Depends(get_db)):
                 db.commit()
                 cached_books_count = len(bookshelf_data.get('books', []))
                 cache_success = True
-                print(f"📚 缓存书架数据成功: {cached_books_count}本书")
+                if cached_books_count == 0:
+                    print(f"📚 缓存书架数据成功: {cached_books_count}本书 (用户书架为空或权限不足)")
+                else:
+                    print(f"📚 缓存书架数据成功: {cached_books_count}本书")
                 
             except Exception as e:
                 print(f"⚠️ 缓存书架数据失败: {e}")

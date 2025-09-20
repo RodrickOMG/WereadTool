@@ -386,6 +386,20 @@ async def get_book_detail(
                 }
             )
 
+        # 检查是否是未知书籍错误
+        if book_info.get('title') in ['未知书籍', '书籍信息不可用'] or book_info.get('error') == 'html_response':
+            print(f"📖 检测到未知书籍: {book_id}")
+            return APIResponse(
+                success=False,
+                message="未知书籍信息，请检查cookie是否有效或重新登录",
+                data={
+                    "error": "UNKNOWN_BOOK",
+                    "requires_login": True,
+                    "bookId": book_id,
+                    "title": "未知书籍"
+                }
+            )
+
         # 检查是否是其他严重错误（只对明确的错误状态进行拦截）
         if book_info.get('error') in ['获取失败', 'API调用失败'] and book_info.get('title') in ['书籍信息暂时不可用']:
             print(f"⚠️ 书籍详情严重错误: {book_id}")
