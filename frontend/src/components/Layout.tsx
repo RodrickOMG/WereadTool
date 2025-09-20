@@ -22,99 +22,57 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-gradient-to-r from-sky-600 to-sky-700 shadow-lg border-b border-sky-500/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
-              <BookOpen className="h-8 w-8 text-primary-600" />
-              <span className="text-xl font-bold text-gray-900">WeRead Tool</span>
-            </Link>
-
-            {/* Navigation */}
-            <nav className="hidden md:flex space-x-8">
-              <Link
-                to="/"
-                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-                }`}
-              >
-                <Book className="h-4 w-4" />
-                <span>书架</span>
-              </Link>
-              <Link
-                to="/search"
-                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/search')
-                    ? 'text-primary-600 bg-primary-50'
-                    : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-                }`}
-              >
-                <Search className="h-4 w-4" />
-                <span>搜索</span>
-              </Link>
-            </nav>
-
-            {/* User menu */}
-            <div className="flex items-center space-x-4">
-              <div className="hidden md:flex items-center space-x-3">
-                {user?.wr_avatar ? (
-                  <img
-                    src={user.wr_avatar}
-                    alt={user.wr_name || '用户头像'}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="h-8 w-8 text-gray-500" />
-                )}
-                <span className="text-sm text-gray-700">{user?.wr_name || user?.wr_vid}</span>
+            <div className="flex items-center space-x-3">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                <BookOpen className="h-6 w-6 text-white" />
               </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-700 hover:text-red-600 transition-colors"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden md:inline">退出</span>
-              </button>
+              <h1 className="text-xl font-bold text-white tracking-wide">微信读书助手</h1>
             </div>
-          </div>
-        </div>
 
-        {/* Mobile navigation */}
-        <div className="md:hidden border-t">
-          <div className="px-4 py-2 space-y-1">
-            <Link
-              to="/"
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive('/')
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-              }`}
-            >
-              <Book className="h-4 w-4" />
-              <span>书架</span>
-            </Link>
-            <Link
-              to="/search"
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive('/search')
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-              }`}
-            >
-              <Search className="h-4 w-4" />
-              <span>搜索</span>
-            </Link>
+            {/* User Menu */}
+            <div className="flex items-center space-x-6">
+              {user && (
+                <>
+                  <div className="flex items-center space-x-3 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 hover:bg-white/20 transition-all duration-200">
+                    {user.wr_avatar ? (
+                      <img
+                        src={user.wr_avatar}
+                        alt={user.wr_name || '用户头像'}
+                        className="h-8 w-8 rounded-full border-2 border-white/30 shadow-sm object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`bg-gradient-to-br from-sky-300 to-sky-400 h-8 w-8 rounded-full flex items-center justify-center text-white font-semibold text-sm border-2 border-white/30 shadow-sm ${user.wr_avatar ? 'hidden' : ''}`}>
+                      {user.wr_name ? user.wr_name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <span className="text-white font-medium text-sm">{user.wr_name || '用户'}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 text-white/90 hover:text-white hover:bg-white/10 px-3 py-2 rounded-lg transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="text-sm font-medium">退出</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main>
         {children}
       </main>
     </div>

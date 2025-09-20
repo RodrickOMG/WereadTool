@@ -54,8 +54,8 @@ export default function HomePage() {
     error,
     refetch,
   } = useQuery(
-    ['books', page, pageSize, loadingMode],
-    () => booksAPI.getBooks(page, pageSize, loadingMode),
+    ['books', page, pageSize, loadingMode, searchFilter],
+    () => booksAPI.getBooks(page, pageSize, loadingMode, searchFilter),
     {
       retry: 1,
       staleTime: 1 * 60 * 1000,
@@ -125,13 +125,14 @@ export default function HomePage() {
   const total = currentResponse?.data?.data?.total || 0
   const loadingInfo = response?.data?.data?.loading_info
 
-  // 根据筛选条件过滤书籍
+  // 书籍列表（筛选已在后端完成）
   const filteredBooks = useMemo(() => {
-    if (searchFilter === 'all') return books
-    if (searchFilter === 'read') return books.filter((book: Book) => book.finishReading === 1)
-    if (searchFilter === 'unread') return books.filter((book: Book) => book.finishReading === 0)
+    // 如果是搜索状态，直接返回搜索结果
+    if (isActiveSearch) return books
+
+    // 对于普通书架，后端已经完成筛选，直接返回
     return books
-  }, [books, searchFilter])
+  }, [books, isActiveSearch])
 
   // 计算显示状态
   const isInitialLoading = isLoading && loadingMode === 'rawbooks' && !showAllBooks && !isActiveSearch
@@ -313,11 +314,21 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">加载失败</div>
-        <button onClick={() => refetch()} className="btn btn-primary">
-          重试
-        </button>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-br from-white/95 to-red-50/80 backdrop-blur-sm rounded-2xl shadow-xl border border-red-200/50">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-full p-4 w-20 h-20 mx-auto mb-6 shadow-lg">
+            <BookIcon className="h-12 w-12 text-white" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-800 mb-3">书架加载失败</h3>
+          <p className="text-gray-600 mb-6">抱歉，无法获取书籍数据，请检查网络连接或稍后重试</p>
+          <button
+            onClick={() => refetch()}
+            className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <RefreshCw className="h-4 w-4 inline mr-2" />
+            重新加载
+          </button>
+        </div>
       </div>
     )
   }
@@ -396,14 +407,20 @@ export default function HomePage() {
             </div>
 
             {isActiveSearch && (
-              <div className="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg border">
+              <div className="text-sm bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-3 rounded-xl border border-sky-200/50 shadow-sm">
                 {currentIsLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader className="h-4 w-4 animate-spin" />
-                    搜索中...
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Loader className="h-4 w-4 animate-spin text-sky-600" />
+                      <div className="absolute inset-0 rounded-full border border-sky-300 animate-ping opacity-25"></div>
+                    </div>
+                    <span className="text-sky-700 font-medium">正在搜索书籍...</span>
                   </div>
                 ) : (
-                  `找到 ${filteredBooks.length} 本书`
+                  <div className="flex items-center gap-2">
+                    <Search className="h-4 w-4 text-sky-600" />
+                    <span className="text-sky-700 font-medium">找到 {filteredBooks.length} 本书</span>
+                  </div>
                 )}
               </div>
             )}
@@ -412,25 +429,32 @@ export default function HomePage() {
 
       {/* Loading Status */}
       {showLoadingIndicator && (
-        <div className="mb-8 p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/30">
-          <div className="flex items-center gap-4">
+        <div className="mb-8 p-6 bg-gradient-to-br from-white/95 to-sky-50/80 backdrop-blur-sm rounded-2xl shadow-xl border border-sky-200/50">
+          <div className="flex items-center gap-5">
             <div className="relative">
-              <Loader className="h-6 w-6 text-blue-600 animate-spin" />
-              <div className="absolute inset-0 rounded-full border-2 border-blue-200 animate-ping opacity-20"></div>
+              <div className="bg-gradient-to-br from-sky-500 to-sky-600 rounded-full p-3 shadow-lg">
+                <Loader className="h-6 w-6 text-white animate-spin" />
+              </div>
+              <div className="absolute inset-0 rounded-full border-2 border-sky-300 animate-ping opacity-30"></div>
+              <div className="absolute inset-0 rounded-full bg-sky-400/20 animate-pulse"></div>
             </div>
             <div className="flex-1">
-              <p className="text-base font-semibold text-gray-900 mb-2">
+              <p className="text-lg font-bold text-gray-800 mb-3 tracking-wide">
                 {isInitialLoading && '📖 正在加载完整书籍数据...'}
                 {isAutoLoading && '🔄 正在同步剩余书籍数据...'}
               </p>
               <div className="relative">
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-1000 ease-out"
-                       style={{ width: loadingMode === 'complete' ? '100%' : '60%' }}>
+                <div className="w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-full h-4 overflow-hidden shadow-inner">
+                  <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-sky-700 h-4 rounded-full transition-all duration-1000 ease-out shadow-sm"
+                       style={{ width: loadingMode === 'complete' ? '100%' : '65%' }}>
                   </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse rounded-full"></div>
               </div>
+              <p className="text-sm text-gray-600 mt-2 font-medium">
+                {isInitialLoading && '正在获取书架数据，请稍候...'}
+                {isAutoLoading && '即将完成，正在处理剩余内容...'}
+              </p>
             </div>
           </div>
         </div>
@@ -442,7 +466,13 @@ export default function HomePage() {
           {Array.from({ length: pageSize }).map((_, i) => (
             <div key={i} className="book-card">
               <div className="book-card-inner card animate-pulse">
-                <div className="bg-gray-300 w-full h-full rounded-2xl"></div>
+                <div className="bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 w-full h-full rounded-2xl relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 animate-pulse-shimmer"></div>
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <div className="bg-gray-300 h-4 rounded mb-2"></div>
+                    <div className="bg-gray-300 h-3 rounded w-3/4"></div>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -453,12 +483,57 @@ export default function HomePage() {
       {!currentIsLoading && filteredBooks.length > 0 && (
         <>
           <div className="book-showcase">
-            {filteredBooks.map((book: Book) => (
-              <Link
-                key={book.bookId}
-                to={`/books/${book.bookId}`}
-                className="book-card group"
-              >
+            {filteredBooks.map((book: Book) => {
+              // 验证bookId有效性
+              const isValidBookId = book.bookId &&
+                                   typeof book.bookId === 'string' &&
+                                   book.bookId.trim() !== '' &&
+                                   book.bookId !== 'undefined' &&
+                                   book.bookId !== 'null'
+
+              // 添加调试日志
+              console.log('📖 渲染书籍卡片:', {
+                bookId: book.bookId,
+                title: book.title,
+                bookIdType: typeof book.bookId,
+                bookIdLength: book.bookId?.length,
+                isValidBookId: isValidBookId,
+                linkTo: isValidBookId ? `/books/${encodeURIComponent(book.bookId)}` : '#invalid'
+              })
+
+              // 如果bookId无效，显示警告而不是链接
+              if (!isValidBookId) {
+                console.warn('⚠️ 无效的bookId，跳过渲染:', book)
+                return (
+                  <div
+                    key={`invalid-${book.title}-${Math.random()}`}
+                    className="book-card group opacity-50 cursor-not-allowed"
+                    title="书籍ID无效，无法查看详情"
+                  >
+                    <div className="book-card-inner">
+                      <img
+                        src={book.cover}
+                        alt={book.title}
+                        className="book-cover-image"
+                      />
+                      <div className="book-overlay">
+                        <div className="book-info">
+                          <h3 className="book-title">{book.title}</h3>
+                          <p className="book-author">{book.author}</p>
+                          <p className="text-red-500 text-sm">⚠️ 书籍ID无效</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <Link
+                  key={book.bookId}
+                  to={`/books/${encodeURIComponent(book.bookId)}`}
+                  className="book-card group"
+                >
                 <div className="book-card-inner">
                   <img
                     src={book.cover}
@@ -521,7 +596,9 @@ export default function HomePage() {
                   </div>
                 </div>
               </Link>
-            ))}
+            )})}
+
+
           </div>
 
           {/* Pagination - 参考原模板样式 */}

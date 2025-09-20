@@ -1,125 +1,394 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from 'react-query'
-import { ArrowLeft, FileText, Download } from 'lucide-react'
+import { ArrowLeft, FileText, Download, Star, Book as BookIcon, X } from 'lucide-react'
 import { booksAPI } from '../lib/api'
 
 export default function BookDetailPage() {
   const { bookId } = useParams<{ bookId: string }>()
+  const [showImageModal, setShowImageModal] = useState(false)
+
+  // 添加调试日志
+  console.log('📚 BookDetailPage - bookId:', bookId)
+  console.log('📚 BookDetailPage - bookId type:', typeof bookId)
+  console.log('📚 BookDetailPage - bookId enabled:', !!bookId)
+
+  // 验证bookId有效性
+  const isValidBookId = bookId &&
+                       typeof bookId === 'string' &&
+                       bookId.trim() !== '' &&
+                       bookId !== 'undefined' &&
+                       bookId !== 'null'
 
   const { data: response, isLoading, error } = useQuery(
     ['book', bookId],
-    () => booksAPI.getBook(bookId!),
-    { enabled: !!bookId }
+    () => {
+      console.log('🔄 API调用 - getBook bookId:', bookId)
+      console.log('   📋 bookId验证:', {
+        exists: !!bookId,
+        type: typeof bookId,
+        length: bookId?.length,
+        trimmed: bookId?.trim(),
+        isValid: isValidBookId
+      })
+
+      if (!isValidBookId) {
+        console.error('❌ BookId无效，无法调用API')
+        throw new Error('BookId is invalid or empty')
+      }
+
+      return booksAPI.getBook(bookId.trim())
+    },
+    {
+      enabled: isValidBookId,
+      cacheTime: 0,  // 不缓存
+      staleTime: 0,  // 立即过期
+      refetchOnMount: true,  // 每次挂载都重新获取
+      refetchOnWindowFocus: false,  // 窗口聚焦时不重新获取
+      retry: (failureCount, error) => {
+        console.log('❌ API调用失败:', error, 'failureCount:', failureCount)
+        // 如果是bookId无效错误，不重试
+        if (error?.message?.includes('invalid') || error?.message?.includes('empty')) {
+          return false
+        }
+        return failureCount < 2
+      },
+      onSuccess: (data) => {
+        console.log('✅ API调用成功:', data)
+      },
+      onError: (error) => {
+        console.log('❌ API调用错误:', error)
+      }
+    }
   )
 
   const book = response?.data?.data
 
   if (isLoading) {
     return (
-      <div className="animate-pulse">
-        <div className="h-8 bg-gray-300 rounded w-32 mb-8"></div>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-gray-300 h-64 rounded"></div>
-          <div className="md:col-span-2 space-y-4">
-            <div className="h-8 bg-gray-300 rounded"></div>
-            <div className="h-4 bg-gray-300 rounded w-1/2"></div>
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-300 rounded"></div>
-              <div className="h-4 bg-gray-300 rounded"></div>
-              <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          {/* Back Button Skeleton */}
+          <div className="animate-pulse">
+            <div className="inline-flex items-center space-x-3 bg-white/80 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg mb-8 border border-white/20">
+              <div className="bg-gradient-to-r from-sky-200 to-sky-300 rounded-lg p-1.5">
+                <div className="h-4 w-4 bg-white/50 rounded"></div>
+              </div>
+              <div className="h-4 w-16 bg-gradient-to-r from-gray-200 to-gray-300 rounded"></div>
             </div>
           </div>
+
+          {/* Content Skeleton */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+            <div className="grid md:grid-cols-3 gap-8 p-8 animate-pulse">
+              {/* Cover Skeleton */}
+              <div className="flex justify-center">
+                <div className="bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 h-96 w-full max-w-xs rounded-xl shadow-2xl relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 animate-pulse-shimmer"></div>
+                </div>
+              </div>
+
+              {/* Info Skeleton */}
+              <div className="md:col-span-2 space-y-6">
+                {/* Title and Author */}
+                <div className="space-y-3">
+                  <div className="h-10 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg w-4/5"></div>
+                  <div className="h-6 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-1/2"></div>
+                </div>
+
+                {/* Tags */}
+                <div className="flex space-x-3">
+                  <div className="h-8 w-24 bg-gradient-to-r from-sky-200 to-sky-300 rounded-full"></div>
+                  <div className="h-8 w-20 bg-gradient-to-r from-yellow-200 to-yellow-300 rounded-full"></div>
+                </div>
+
+                {/* Intro */}
+                <div className="bg-gradient-to-r from-gray-100 to-blue-100 rounded-xl p-6 border border-gray-200/50">
+                  <div className="h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-32 mb-3"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded"></div>
+                    <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded"></div>
+                    <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-3/4"></div>
+                  </div>
+                </div>
+
+                {/* Publisher */}
+                <div className="bg-gray-100 rounded-lg px-4 py-3 border border-gray-200/50">
+                  <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-1/3"></div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-4 pt-4">
+                  <div className="h-5 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-24 mb-3"></div>
+                  <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="h-16 bg-gradient-to-r from-sky-200 to-sky-300 rounded-xl shadow-lg"></div>
+                    <div className="h-16 bg-gradient-to-r from-gray-200 to-gray-300 rounded-xl shadow-lg"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 如果bookId无效，显示特殊错误页面
+  if (!isValidBookId) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-br from-white/95 to-yellow-50/80 backdrop-blur-sm rounded-2xl shadow-xl border border-yellow-200/50">
+          <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full p-4 w-20 h-20 mx-auto mb-6 shadow-lg">
+            <FileText className="h-12 w-12 text-white" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-800 mb-3">书籍ID无效</h3>
+          <p className="text-gray-600 mb-6">无法识别的书籍标识符：{bookId || '空'}</p>
+          <Link
+            to="/"
+            className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            返回书架
+          </Link>
         </div>
       </div>
     )
   }
 
   if (error || !book) {
+    const errorData = (error as any)?.response?.data?.data
+    const isLoginExpired = errorData?.error === 'LOGIN_EXPIRED'
+    const isBookUnavailable = errorData?.error === 'BOOK_INFO_UNAVAILABLE'
+    const isInvalidBookId = errorData?.error === 'INVALID_BOOK_ID'
+
     return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">加载失败</div>
-        <Link to="/" className="btn btn-primary">
-          返回书架
-        </Link>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-br from-white/95 to-red-50/80 backdrop-blur-sm rounded-2xl shadow-xl border border-red-200/50">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-full p-4 w-20 h-20 mx-auto mb-6 shadow-lg">
+            <FileText className="h-12 w-12 text-white" />
+          </div>
+
+          {isLoginExpired ? (
+            <>
+              <h3 className="text-xl font-bold text-gray-800 mb-3">登录已过期</h3>
+              <p className="text-gray-600 mb-6">您的登录状态已过期，请重新登录以查看书籍详情</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.location.href = '/login'}
+                  className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 w-full"
+                >
+                  重新登录
+                </button>
+                <Link
+                  to="/"
+                  className="block bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                >
+                  返回书架
+                </Link>
+              </div>
+            </>
+          ) : isBookUnavailable ? (
+            <>
+              <h3 className="text-xl font-bold text-gray-800 mb-3">书籍详情暂时不可用</h3>
+              <p className="text-gray-600 mb-6">暂时无法获取该书籍的详细信息，请稍后重试</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 w-full"
+                >
+                  重新加载
+                </button>
+                <Link
+                  to="/"
+                  className="block bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                >
+                  返回书架
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-xl font-bold text-gray-800 mb-3">加载失败</h3>
+              <p className="text-gray-600 mb-6">抱歉，无法获取书籍详情，请检查网络连接或稍后重试</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 w-full"
+                >
+                  重新加载
+                </button>
+                <Link
+                  to="/"
+                  className="block bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-3 rounded-xl transition-all duration-200"
+                >
+                  返回书架
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
-    <div>
-      {/* Back Button */}
-      <Link
-        to="/"
-        className="inline-flex items-center space-x-2 text-gray-600 hover:text-gray-900 mb-8"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        <span>返回书架</span>
-      </Link>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Back Button */}
+        <Link
+          to="/"
+          className="inline-flex items-center space-x-3 bg-white/80 backdrop-blur-sm text-gray-700 hover:text-sky-600 hover:bg-white px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 mb-8 border border-white/20 group"
+        >
+          <div className="bg-gradient-to-r from-sky-500 to-sky-600 rounded-lg p-1.5 group-hover:from-sky-600 group-hover:to-sky-700 transition-all duration-200">
+            <ArrowLeft className="h-4 w-4 text-white" />
+          </div>
+          <span className="font-medium">返回书架</span>
+        </Link>
 
-      {/* Book Details */}
-      <div className="grid md:grid-cols-3 gap-8">
-        {/* Cover */}
-        <div>
-          <img
-            src={book.cover}
-            alt={book.title}
-            className="w-full max-w-xs mx-auto rounded-lg shadow-lg"
-          />
-        </div>
+        {/* Book Details */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+          <div className="grid md:grid-cols-3 gap-8 p-8">
+            {/* Cover */}
+            <div className="flex justify-center">
+              <div
+                className="relative group cursor-pointer"
+                onClick={() => setShowImageModal(true)}
+              >
+                {/* 背景光晕效果 */}
+                <div className="absolute -inset-4 bg-gradient-to-r from-sky-400/20 via-blue-500/20 to-purple-600/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
 
-        {/* Info */}
-        <div className="md:col-span-2">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{book.title}</h1>
-          <p className="text-xl text-gray-600 mb-4">{book.author}</p>
+                {/* 主要封面容器 */}
+                <div className="relative bg-white p-2 rounded-2xl shadow-2xl group-hover:shadow-3xl transition-all duration-300">
+                  <img
+                    src={book.cover}
+                    alt={book.title}
+                    className="w-full max-w-xs mx-auto rounded-xl transform group-hover:scale-[1.02] transition-all duration-300 ease-out"
+                  />
 
-          {book.category && (
-            <div className="mb-4">
-              <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                {book.category}
-              </span>
+                  {/* 顶部光泽效果 */}
+                  <div className="absolute inset-2 rounded-xl bg-gradient-to-br from-white/40 via-transparent to-transparent opacity-60 pointer-events-none"></div>
+
+                  {/* Hover时的覆盖层 */}
+                  <div className="absolute inset-2 rounded-xl bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-center pb-4">
+                    <div className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                      点击查看大图
+                    </div>
+                  </div>
+
+                  {/* 边框高光效果 */}
+                  <div className="absolute inset-0 rounded-2xl border-2 border-white/20 group-hover:border-sky-400/50 transition-all duration-300"></div>
+                </div>
+              </div>
             </div>
-          )}
 
-          {book.newRatingDetail && (
-            <div className="mb-4">
-              <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
-                {book.newRatingDetail}
-              </span>
+            {/* Info */}
+            <div className="md:col-span-2 space-y-6">
+              <div>
+                <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">{book.title}</h1>
+                <p className="text-xl text-gray-600 font-medium">{book.author}</p>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-3">
+                {book.category && (
+                  <span className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 rounded-full text-sm font-medium border border-sky-300/50">
+                    <BookIcon className="h-4 w-4 mr-2" />
+                    {book.category}
+                  </span>
+                )}
+
+                {book.newRatingDetail && (
+                  <span className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 rounded-full text-sm font-medium border border-yellow-300/50">
+                    <Star className="h-4 w-4 mr-2" />
+                    {book.newRatingDetail}
+                  </span>
+                )}
+              </div>
+
+              {/* Introduction */}
+              {book.intro && (
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200/50">
+                  <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center">
+                    <FileText className="h-5 w-5 mr-2 text-sky-600" />
+                    内容简介
+                  </h3>
+                  <p className="text-gray-700 leading-relaxed text-base">{book.intro}</p>
+                </div>
+              )}
+
+              {/* Publisher */}
+              {book.publisher && (
+                <div className="text-gray-600 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200/50">
+                  <span className="font-semibold text-gray-800">出版社：</span>
+                  <span className="ml-2">{book.publisher}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="space-y-4 pt-4">
+                <h3 className="text-lg font-bold text-gray-900 mb-3">阅读笔记</h3>
+                <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Link
+                    to={`/books/${bookId}/notes?option=1`}
+                    className="group bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
+                  >
+                    <div className="bg-white/20 rounded-lg p-2">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold">完整笔记</div>
+                      <div className="text-sm text-white/80">包含所有章节</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to={`/books/${bookId}/notes?option=2`}
+                    className="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold px-6 py-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-3"
+                  >
+                    <div className="bg-white/20 rounded-lg p-2">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold">精选笔记</div>
+                      <div className="text-sm text-white/80">仅包含有标注的章节</div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
             </div>
-          )}
-
-          {book.intro && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">简介</h3>
-              <p className="text-gray-700 leading-relaxed">{book.intro}</p>
-            </div>
-          )}
-
-          {book.publisher && (
-            <div className="text-sm text-gray-600 mb-6">
-              <strong>出版社：</strong>{book.publisher}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="space-y-3">
-            <Link
-              to={`/books/${bookId}/notes?option=1`}
-              className="btn btn-primary flex items-center space-x-2 w-full md:w-auto"
-            >
-              <FileText className="h-4 w-4" />
-              <span>查看笔记（包含所有章节）</span>
-            </Link>
-            <Link
-              to={`/books/${bookId}/notes?option=2`}
-              className="btn btn-secondary flex items-center space-x-2 w-full md:w-auto"
-            >
-              <FileText className="h-4 w-4" />
-              <span>查看笔记（仅包含有标注的章节）</span>
-            </Link>
           </div>
         </div>
+
+        {/* Image Modal */}
+        {showImageModal && (
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowImageModal(false)}
+          >
+            <div className="relative max-w-4xl max-h-[90vh] animate-fadeIn">
+              {/* Close Button */}
+              <button
+                onClick={() => setShowImageModal(false)}
+                className="absolute -top-12 right-0 bg-white/20 hover:bg-white/30 text-white rounded-full p-2 transition-all duration-200 backdrop-blur-sm"
+              >
+                <X className="h-6 w-6" />
+              </button>
+
+              {/* Large Image */}
+              <img
+                src={book.cover}
+                alt={book.title}
+                className="max-w-full max-h-full rounded-2xl shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {/* Image Info */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 rounded-b-2xl">
+                <h3 className="text-white text-xl font-bold mb-1">{book.title}</h3>
+                <p className="text-white/80 text-sm">{book.author}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

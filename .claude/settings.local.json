@@ -4,7 +4,9 @@
       "Read(//d/projects/DaiversePlayground/WereadTool/**)",
       "WebFetch(domain:github.com)",
       "Read(//d/projects/DaiversePlayground/static/templates/WereadTool/**)",
-      "Read(//d/projects/DaiversePlayground/static/css/playground/WereadTool/**)"
+      "Read(//d/projects/DaiversePlayground/static/css/playground/WereadTool/**)",
+      "Bash(conda install:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

@@ -35,6 +35,7 @@ async def get_books(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
     mode: str = Query("all", description="加载模式: rawbooks, all"),
+    filter: str = Query("all", description="筛选条件: all, read, unread"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -171,15 +172,25 @@ async def get_books(
         # Get books list
         all_books_data = user_data.get('books', [])
 
-        # 根据加载模式过滤书籍
+        # 根据加载模式处理书籍
         if mode == "rawbooks":
-            # 只返回有完整信息的书籍（来自rawBooks）
-            books_data = [book for book in all_books_data if not book.get('needsDetailFetch', False)]
-            print(f"📖 rawbooks模式: 返回 {len(books_data)} 本有完整信息的书籍")
+            # rawbooks模式：优先显示有完整信息的书籍，但仍包含所有书籍以保证分页正确
+            books_data = all_books_data
+            print(f"📖 rawbooks模式: 总共 {len(books_data)} 本书籍（优先显示完整信息）")
         else:
             # 返回所有书籍
             books_data = all_books_data
             print(f"📚 完整模式: 返回 {len(books_data)} 本书籍")
+
+        # 根据筛选条件过滤书籍
+        if filter == "read":
+            books_data = [book for book in books_data if book.get('finishReading') == 1]
+            print(f"📖 筛选已读书籍: {len(books_data)} 本")
+        elif filter == "unread":
+            books_data = [book for book in books_data if book.get('finishReading') == 0]
+            print(f"📚 筛选未读书籍: {len(books_data)} 本")
+        else:
+            print(f"📋 显示全部书籍: {len(books_data)} 本")
 
         # Sort by reading time (most recent first)
         books_data.sort(key=lambda x: x.get('readUpdateTime', 0), reverse=True)
@@ -199,6 +210,15 @@ async def get_books(
         detailed_books = []
 
         for book in page_books:
+            # 验证bookId有效性
+            book_id = book.get('bookId', '')
+            if (not book_id or
+                not isinstance(book_id, str) or
+                book_id.strip() == '' or
+                book_id in ['undefined', 'null', 'None']):
+                print(f"⚠️ 跳过无效的bookId: {book_id}")
+                continue
+
             try:
                 # 优先检查原始数据是否包含足够的信息
                 has_sufficient_data = (
@@ -301,7 +321,7 @@ async def get_books(
                     "total_all_books": total_all_books,
                     "rawbooks_count": rawbooks_count,
                     "synced_books_count": synced_books_count,
-                    "has_more_to_sync": synced_books_count > 0 and mode == "rawbooks"
+                    "has_more_to_sync": False  # 现在已经包含所有书籍，无需再同步
                 }
             }
         )
@@ -317,21 +337,74 @@ async def get_book_detail(
 ):
     """Get detailed information for a specific book"""
     try:
-        # Check cache first
+        print(f"📚 API调用 /books/{book_id} - 用户: {current_user.wr_name}")
+        print(f"   📋 bookId类型: {type(book_id)}, 长度: {len(book_id)}, 内容: '{book_id}'")
+
+        # 验证bookId
+        if (not book_id or
+            not isinstance(book_id, str) or
+            book_id.strip() == '' or
+            book_id in ['undefined', 'null', 'None']):
+            print(f"❌ 无效的bookId参数: {book_id}")
+            return APIResponse(
+                success=False,
+                message="无效的书籍ID",
+                data={
+                    "error": "INVALID_BOOK_ID",
+                    "bookId": book_id
+                }
+            )
+
+        book_id = book_id.strip()
+        print(f"✅ bookId验证通过，开始获取详情: {book_id}")
+
+        # 不使用缓存，每次都获取最新数据
+        print(f"🔄 获取最新书籍详情: {book_id}")
+
+        # 清除可能存在的旧缓存
         cached_book = db.query(BookCache).filter(BookCache.book_id == book_id).first()
-
         if cached_book:
-            book_info = cached_book.book_info
-        else:
-            # Fetch from API
-            cookies = get_user_cookies(current_user)
-            weread_api = WeReadAPI(cookies)
-            book_info = weread_api.get_book_info(book_id)
-
-            # Cache the result
-            cache_entry = BookCache(book_id=book_id, book_info=book_info)
-            db.add(cache_entry)
+            print(f"🗑️ 清除旧缓存: {book_id}")
+            db.delete(cached_book)
             db.commit()
+
+        # 直接从API获取最新数据
+        cookies = get_user_cookies(current_user)
+        weread_api = WeReadAPI(cookies)
+        book_info = weread_api.get_book_info(book_id)
+
+        # 检查是否是认证错误
+        if book_info.get('error') == '认证失败' or book_info.get('title') == '需要重新登录获取':
+            print(f"🔐 书籍详情获取失败，认证错误: {book_id}")
+            return APIResponse(
+                success=False,
+                message="获取书籍详情失败，登录已过期",
+                data={
+                    "error": "LOGIN_EXPIRED",
+                    "requires_login": True,
+                    "bookId": book_id
+                }
+            )
+
+        # 检查是否是其他严重错误（只对明确的错误状态进行拦截）
+        if book_info.get('error') in ['获取失败', 'API调用失败'] and book_info.get('title') in ['书籍信息暂时不可用']:
+            print(f"⚠️ 书籍详情严重错误: {book_id}")
+            return APIResponse(
+                success=False,
+                message="书籍详情暂时不可用，请稍后重试",
+                data={
+                    "error": "BOOK_INFO_UNAVAILABLE",
+                    "bookId": book_id,
+                    "retry": True
+                }
+            )
+
+        # 处理评分信息
+        new_rating_detail = book_info.get('newRatingDetail', {})
+        if isinstance(new_rating_detail, dict):
+            rating_title = new_rating_detail.get('title', '')
+        else:
+            rating_title = str(new_rating_detail) if new_rating_detail else ''
 
         return APIResponse(
             success=True,
@@ -344,7 +417,7 @@ async def get_book_detail(
                 "intro": book_info.get('intro', ''),
                 "publisher": book_info.get('publisher', ''),
                 "category": book_info.get('category', ''),
-                "newRatingDetail": book_info.get('newRatingDetail', {}).get('title', '')
+                "newRatingDetail": rating_title
             }
         )
 

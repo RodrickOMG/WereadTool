@@ -387,8 +387,13 @@ class WeReadAPI:
             raw_books_dict = {}
             if raw_books:
                 for book in raw_books:
-                    if isinstance(book, dict) and "bookId" in book:
-                        raw_books_dict[book["bookId"]] = book
+                    if (isinstance(book, dict) and
+                        "bookId" in book and
+                        isinstance(book["bookId"], str) and
+                        book["bookId"].strip() != "" and
+                        book["bookId"] not in ["undefined", "null", "None"]):
+                        book_id = book["bookId"].strip()
+                        raw_books_dict[book_id] = book
 
             # 2. 从 rawIndexes 中提取所有书籍ID（这可能包含更完整的列表）
             all_book_ids_from_indexes = set()
@@ -398,9 +403,13 @@ class WeReadAPI:
                         book_id = index_item.get("bookId")
                         role = index_item.get("role", "")
 
-                        # 只处理类型为 "book" 的项目
-                        if book_id and role == "book":
-                            all_book_ids_from_indexes.add(book_id)
+                        # 只处理类型为 "book" 的项目，并验证bookId有效性
+                        if (book_id and
+                            role == "book" and
+                            isinstance(book_id, str) and
+                            book_id.strip() != "" and
+                            book_id not in ["undefined", "null", "None"]):
+                            all_book_ids_from_indexes.add(book_id.strip())
 
             print(f"📋 从 rawIndexes 提取到 {len(all_book_ids_from_indexes)} 个书籍ID")
 
@@ -761,6 +770,84 @@ class WeReadAPI:
             "source": f"html_parsed_{source_type}"
         }
 
+    def _normalize_web_book_info(self, raw_data: Dict, book_id: str) -> Dict:
+        """
+        标准化 /web/book/info 接口返回的书籍信息
+        将微信读书web接口的数据格式转换为统一格式
+        """
+        try:
+            # 处理基本信息
+            title = raw_data.get('title', '未知书籍')
+            author = raw_data.get('author', '未知作者')
+            intro = raw_data.get('intro', '')
+
+            # 处理封面
+            cover = raw_data.get('cover', '')
+            if cover and not cover.startswith('http'):
+                cover = f"https://res.weread.qq.com{cover}" if not cover.startswith('//') else f"https:{cover}"
+
+            # 处理分类信息
+            category = raw_data.get('category', '')
+            categories = raw_data.get('categories', [])
+            if not category and categories and len(categories) > 0:
+                category = categories[0].get('title', '')
+
+            # 处理评分信息
+            new_rating_detail = raw_data.get('newRatingDetail', {})
+            if isinstance(new_rating_detail, dict):
+                rating_title = new_rating_detail.get('title', '')
+            else:
+                rating_title = str(new_rating_detail) if new_rating_detail else ''
+
+            # 处理译者信息
+            translator_seg = raw_data.get('translatorSeg', [])
+            if translator_seg and len(translator_seg) > 0:
+                translator = translator_seg[0].get('words', '')
+                if translator:
+                    author = f"{author} (译: {translator})"
+
+            # 构建标准化数据
+            normalized_data = {
+                "bookId": book_id,
+                "title": title,
+                "author": author,
+                "cover": cover,
+                "intro": intro,
+                "publisher": raw_data.get('publisher', ''),
+                "category": category,
+                "finishReading": raw_data.get('finishReading', 0),
+                "newRatingDetail": {"title": rating_title},
+                "totalWords": raw_data.get('totalWords', 0),
+                "publishTime": raw_data.get('publishTime', ''),
+                "isbn": raw_data.get('isbn', ''),
+                "newRating": raw_data.get('newRating', 0),
+                "newRatingCount": raw_data.get('newRatingCount', 0),
+                "paid": raw_data.get('paid', 0),
+                "finished": raw_data.get('finished', 0),
+                "secret": raw_data.get('secret', 0),
+                "source": "web_book_info_normalized"
+            }
+
+            print(f"📚 成功标准化web书籍信息: {title} (评分: {rating_title})")
+            return normalized_data
+
+        except Exception as e:
+            print(f"⚠️ 标准化web书籍信息失败 {book_id}: {e}")
+            # 返回基础信息作为备选
+            return {
+                "bookId": book_id,
+                "title": raw_data.get('title', '标准化失败'),
+                "author": raw_data.get('author', '未知'),
+                "cover": raw_data.get('cover', ''),
+                "intro": raw_data.get('intro', ''),
+                "publisher": raw_data.get('publisher', ''),
+                "category": raw_data.get('category', ''),
+                "finishReading": 0,
+                "newRatingDetail": {"title": ""},
+                "error": "标准化失败",
+                "source": "web_book_info_fallback"
+            }
+
     def _extract_book_title(self, html_content: str, book_id: str) -> str:
         """从HTML中提取特定书籍的标题"""
         try:
@@ -800,22 +887,47 @@ class WeReadAPI:
 
     def get_book_info(self, book_id: str) -> Dict:
         """Get book information with fallback support"""
-        fallback_urls = [
-            f"{settings.weread_base_url}/book/info?bookId={book_id}",
-            f"{settings.weread_base_url}/web/book/info?bookId={book_id}",
-            f"{settings.weread_base_url}/book/detail?bookId={book_id}"
+        fallback_apis = [
+            {
+                "name": "web_book_info",
+                "url": f"{settings.weread_web_url}/web/book/info?bookId={book_id}",
+                "headers": self.headers_web,
+                "timeout": 15
+            },
+            {
+                "name": "api_book_info",
+                "url": f"{settings.weread_base_url}/book/info?bookId={book_id}",
+                "headers": self.headers,
+                "timeout": 10
+            },
+            {
+                "name": "book_detail",
+                "url": f"{settings.weread_base_url}/book/detail?bookId={book_id}",
+                "headers": self.headers,
+                "timeout": 10
+            }
         ]
 
         last_error = None
-        for url in fallback_urls:
+        for api_config in fallback_apis:
             try:
-                print(f"🔄 获取书籍信息: {book_id} - {url.split('/')[-1]}")
-                r = requests.get(url, headers=self.headers, verify=False, timeout=10)
+                print(f"🔄 获取书籍信息: {book_id} - {api_config['name']}")
+                r = requests.get(
+                    api_config['url'],
+                    headers=api_config['headers'],
+                    verify=False,
+                    timeout=api_config['timeout']
+                )
 
                 if r.status_code == 200:
                     try:
                         data = r.json()
-                        print(f"✅ 书籍信息获取成功: {book_id}")
+                        print(f"✅ 书籍信息获取成功: {book_id} - {api_config['name']}")
+
+                        # 对 web_book_info 的响应进行特殊处理
+                        if api_config['name'] == 'web_book_info':
+                            return self._normalize_web_book_info(data, book_id)
+
                         return data
                     except ValueError as json_error:
                         # 检查是否为HTML响应
