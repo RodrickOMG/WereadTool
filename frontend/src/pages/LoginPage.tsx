@@ -125,7 +125,7 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-3">WeRead Tool</h1>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-3">WereadTool</h1>
             <p className="text-xl text-gray-600 mb-4">微信读书助手</p>
           </div>
 
