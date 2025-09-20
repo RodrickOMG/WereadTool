@@ -5,26 +5,36 @@ Weread Tool 是一个基于 Web 的微信读书工具箱
 ## ✨ 主要功能
 
 - **全量书架同步**：通过解析 Web 端数据和调用同步接口，获取您微信读书账户下的所有书籍，包括文件夹深处的书籍。
+
+  ![image-20250920232025843](D:\projects\WereadTool\assets\image-20250920232025843.png)
+
 - **书籍信息展示**：以卡片形式清晰展示您的书架，包含封面、书名、作者、阅读进度和推荐值。
+
+  ![image-20250920232110141](D:\projects\WereadTool\assets\image-20250920232110141.png)
+
 - **笔记导出**：将任意一本书的划线和想法导出为 Markdown 或 HTML 格式，方便本地保存和查阅。
+
+  ![image-20250920232140072](D:\projects\WereadTool\assets\image-20250920232140072.png)
+
 - **书籍搜索**：在您的书架中快速搜索特定书籍。
+
+  ![image-20250920233115420](D:\projects\WereadTool\assets\image-20250920233115420.png)
+
 - **安全认证**：通过用户在浏览器中获取的 Cookie 进行认证，保障账户安全。
+
+  ![image-20250920232409058](D:\projects\WereadTool\assets\image-20250920232409058.png)
 
 ## 🚀 技术栈
 
 - **后端**:
   - [Python 3.11](https://www.python.org/)
   - [FastAPI](https://fastapi.tiangolo.com/): 高性能的 Web 框架
-  - [SQLAlchemy](https://www.sqlalchemy.org/): ORM，用于数据库操作
   - [Pydantic](https://docs.pydantic.dev/): 数据验证和设置管理
 - **前端**:
   - [React](https://reactjs.org/)
   - [Vite](https://vitejs.dev/): 极速的现代前端构建工具
   - [TypeScript](https://www.typescriptlang.org/)
   - [Tailwind CSS](https://tailwindcss.com/): 功能类优先的 CSS 框架
-- **数据库**:
-  - [SQLite](https://www.sqlite.org/index.html): (默认) 轻量级本地数据库
-  - [PostgreSQL](https://www.postgresql.org/): (生产环境推荐)
 - **部署**:
   - [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
   - [Nginx](https://www.nginx.com/): 反向代理和静态文件服务
@@ -148,5 +158,9 @@ docker-compose up -d
 
 - [mcp-server-weread](https://github.com/ChenyqThu/mcp-server-weread)
 - [wereader](https://github.com/arry-lee/wereader)
+
+## 💡下一步计划
+
+- 还没想好……
 
 > **免责声明**: 本项目调用的所有 API接口随时可能发生变化，导致功能失效。请仅用于个人学习和研究，不要用于商业目的。
